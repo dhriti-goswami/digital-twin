@@ -1,0 +1,103 @@
+# Application Configuration
+app:
+  name: "Diabetes Digital Twin"
+  version: "1.0.0"
+  debug: true
+  log_level: "INFO"
+
+# Database Configuration
+database:
+  postgres:
+    host: ${POSTGRES_HOST:localhost}
+    port: ${POSTGRES_PORT:5433}
+    database: ${POSTGRES_DB:digital_twin}
+    user: ${POSTGRES_USER:postgres}
+    password: ${POSTGRES_PASSWORD:digitaltwin2024}
+    pool_size: 10
+    max_overflow: 20
+
+  redis:
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    db: 0
+
+# ML Model Configuration
+model:
+  # Glucose Predictor
+  predictor:
+    type: "transformer"  # lstm or transformer
+    hidden_size: 128
+    num_layers: 2
+    num_heads: 8  # for transformer
+    dropout: 0.1
+    sequence_length: 24  # 2 hours of 5-min intervals
+    prediction_horizons: [6, 12, 18, 24]  # 30, 60, 90, 120 minutes
+
+  # Training
+  training:
+    batch_size: 32
+    learning_rate: 0.001
+    weight_decay: 0.01
+    epochs: 100
+    early_stopping_patience: 10
+
+  # Physics-Informed constraints (Bergman Minimal Model)
+  pinn:
+    enabled: true
+    p1: 0.028735  # glucose effectiveness (min^-1)
+    p2: 0.028344  # rate constant for remote insulin (min^-1)
+    p3: 5.035e-5  # rate of insulin action per unit insulin (min^-2 per uU/ml)
+    gb: 110.0     # basal glucose (mg/dL)
+    ib: 7.0       # basal insulin (uU/ml)
+    lambda_physics: 0.1  # weight of physics loss
+
+# LLM Configuration
+llm:
+  provider: "ollama"
+  model: ${OLLAMA_MODEL:llama3:8b}
+  base_url: ${OLLAMA_HOST:http://localhost:11434}
+  temperature: 0.7
+  max_tokens: 2048
+
+  # RAG Configuration
+  rag:
+    embedding_model: "all-MiniLM-L6-v2"
+    chunk_size: 500
+    chunk_overlap: 50
+    top_k: 5
+
+# ChromaDB Configuration
+vectordb:
+  persist_directory: "./data/vectors"
+  collection_name: "medical_guidelines"
+
+# MLflow Configuration
+mlflow:
+  tracking_uri: ${MLFLOW_TRACKING_URI:http://localhost:5000}
+  experiment_name: "diabetes_digital_twin"
+
+# MinIO Configuration
+minio:
+  endpoint: ${MINIO_ENDPOINT:localhost:9000}
+  access_key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret_key: ${MINIO_SECRET_KEY:minioadmin123}
+  bucket_name: "digital-twin-data"
+
+# Drift Detection
+drift_detection:
+  enabled: true
+  check_interval_minutes: 60
+  psi_threshold: 0.2  # Population Stability Index
+  ks_threshold: 0.05  # Kolmogorov-Smirnov p-value
+  mape_threshold: 15.0  # Mean Absolute Percentage Error
+
+# Alert Thresholds
+alerts:
+  hypoglycemia:
+    severe: 54
+    warning: 70
+  hyperglycemia:
+    warning: 180
+    severe: 250
+  prediction:
+    warning_minutes: 30  # Warn this many minutes before predicted event

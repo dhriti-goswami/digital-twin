@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from src.utils.config import settings
+  File "/home/sammyyakk/projects/digital-twin/src/utils/__init__.py", line 3, in <module>
+    from src.utils.config import Settings, settings, load_yaml_config
+  File "/home/sammyyakk/projects/digital-twin/src/utils/config.py", line 9, in <module>
+    from pydantic import Field
+ModuleNotFoundError: No module named 'pydantic'
