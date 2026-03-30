@@ -1,0 +1,60 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and temp files
+*.log
+*.txt
+!requirements.txt
+err.txt
+out.txt
+
+# Model checkpoints (large files)
+checkpoints/*.pt
+checkpoints/*.pth
+checkpoints/*.onnx
+# Keep best model for deployment
+!checkpoints/best_model.pt
+
+# Data (keep structure, ignore large files)
+data/raw/**/*.csv
+data/processed/*.csv
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Environment variables
+.env
+.env.local
+
+# MLflow
+mlruns/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Build
+dist/
+build/
+*.egg-info/

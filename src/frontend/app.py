@@ -9,6 +9,7 @@ Provides:
 - Patient statistics
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -31,8 +32,42 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# Custom CSS for better styling
+st.markdown("""
+<style>
+    .main-header {
+        font-size: 2.5rem;
+        font-weight: 700;
+        background: linear-gradient(90deg, #1f77b4, #9b59b6);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 0;
+    }
+    .subtitle {
+        font-size: 1rem;
+        color: #666;
+        margin-top: 0;
+    }
+    .metric-card {
+        background: #f0f2f6;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        text-align: center;
+    }
+    .status-badge {
+        padding: 0.25rem 0.75rem;
+        border-radius: 1rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+    .status-ok { background: #d4edda; color: #155724; }
+    .status-warn { background: #fff3cd; color: #856404; }
+    .status-danger { background: #f8d7da; color: #721c24; }
+</style>
+""", unsafe_allow_html=True)
+
 # API configuration
-API_BASE_URL = "http://localhost:8080/api/v1"
+API_BASE_URL = os.getenv("API_URL", "http://localhost:8080/api/v1")
 
 
 # ==================== Helper Functions ====================

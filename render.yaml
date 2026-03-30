@@ -1,0 +1,33 @@
+# Render.com deployment configuration
+# Free tier: 750 hours/month, auto-sleep after 15min inactivity
+
+services:
+  # FastAPI Backend
+  - type: web
+    name: diabetes-twin-api
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn src.api.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: DATABASE_URL
+        value: sqlite:///./data/digital_twin.db
+
+  # Streamlit Frontend
+  - type: web
+    name: diabetes-twin-frontend
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run src/frontend/app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: API_URL
+        fromService:
+          type: web
+          name: diabetes-twin-api
+          property: host

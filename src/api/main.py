@@ -34,8 +34,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Global instances (initialized on startup)
-predictor = None
-explainer = None
+inference_service = None
 agent = None
 rag = None
 
@@ -43,18 +42,26 @@ rag = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
-    global predictor, explainer, agent, rag
+    global inference_service, agent, rag
 
     logger.info("Starting Diabetes Digital Twin API...")
 
     # Initialize components
     try:
+        # Initialize inference service with trained model
+        from src.models.inference import get_inference_service
+        inference_service = get_inference_service()
+        if inference_service.model_loaded:
+            logger.info("Glucose prediction model loaded successfully")
+        else:
+            logger.warning("Model not loaded - using fallback predictions")
+
         # Initialize RAG
         from src.agents.rag import setup_rag
         rag = setup_rag()
         logger.info("RAG system initialized")
 
-        # Initialize agent (will work even without model)
+        # Initialize agent
         from src.agents.diabetes_agent import create_diabetes_agent
         agent = create_diabetes_agent(predictor=None, explainer=None)
         logger.info("Diabetes agent initialized")
@@ -96,8 +103,7 @@ async def health_check():
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
         "components": {
-            "predictor": predictor is not None,
-            "explainer": explainer is not None,
+            "model_loaded": inference_service.model_loaded if inference_service else False,
             "agent": agent is not None,
             "rag": rag is not None,
         }
@@ -264,7 +270,7 @@ async def ingest_meal(meal: Meal, patient_id: int):
 
 @app.post("/api/v1/predict", response_model=PredictionResponse)
 async def predict_glucose(request: PredictionRequest):
-    """Predict future glucose levels."""
+    """Predict future glucose levels using trained model."""
     try:
         # Get recent patient data
         from src.data.ingestion import DataIngestion
@@ -276,41 +282,50 @@ async def predict_glucose(request: PredictionRequest):
         cgm_data = ingestion.get_patient_cgm_history(
             request.patient_id, start_time, end_time
         )
+
+        # Get insulin and meal data for better predictions
+        insulin_data = pd.DataFrame()
+        meal_data = pd.DataFrame()
+        try:
+            insulin_start = end_time - timedelta(hours=4)
+            insulin_data = ingestion.get_patient_insulin_history(
+                request.patient_id, insulin_start, end_time
+            )
+            meal_data = ingestion.get_patient_meal_history(
+                request.patient_id, insulin_start, end_time
+            )
+        except:
+            pass
+
         ingestion.close()
 
         if cgm_data.empty:
             raise HTTPException(status_code=404, detail="No recent CGM data available")
 
-        # Convert glucose values to float to avoid Decimal/float mixing
+        # Convert glucose values to float
         cgm_data["glucose_mg_dl"] = cgm_data["glucose_mg_dl"].astype(float)
         current_glucose = float(cgm_data["glucose_mg_dl"].iloc[-1])
 
-        # Generate predictions (using model or simulation)
-        if predictor is not None:
-            # Use actual model
-            # predictions = predictor.predict(features)
-            pass
-
-        # Fallback: physiological simulation
-        predictions = {}
-        confidence = {}
-
-        for horizon in [30, 60, 90, 120]:
-            # Simple trend-based prediction
-            if len(cgm_data) >= 6:
-                recent_trend = float(cgm_data["glucose_mg_dl"].iloc[-1] - cgm_data["glucose_mg_dl"].iloc[-6]) / 5
-                predicted = current_glucose + (recent_trend * horizon / 5)
-            else:
-                predicted = current_glucose
-
-            # Add some physiological regression to mean
-            predicted = predicted * 0.9 + 110 * 0.1  # Slight pull toward normal
-
-            predictions[f"{horizon}min"] = round(predicted, 1)
-            confidence[f"{horizon}min"] = (
-                round(predicted - 20, 1),
-                round(predicted + 20, 1)
+        # Use inference service for predictions
+        if inference_service is not None:
+            result = inference_service.predict(
+                cgm_data, insulin_data, meal_data, return_uncertainty=True
             )
+            predictions = result["predictions"]
+            confidence = result["confidence_intervals"]
+        else:
+            # Fallback
+            predictions = {}
+            confidence = {}
+            for horizon in [30, 60, 90, 120]:
+                if len(cgm_data) >= 6:
+                    trend = float(cgm_data["glucose_mg_dl"].iloc[-1] - cgm_data["glucose_mg_dl"].iloc[-6]) / 5
+                    predicted = current_glucose + (trend * horizon / 5)
+                else:
+                    predicted = current_glucose
+                predicted = predicted * 0.9 + 110 * 0.1
+                predictions[f"{horizon}min"] = round(predicted, 1)
+                confidence[f"{horizon}min"] = (round(predicted - 20, 1), round(predicted + 20, 1))
 
         # Determine risk level
         min_predicted = min(predictions.values())
@@ -362,47 +377,39 @@ async def simulate_scenario(request: SimulationRequest):
 
         current_glucose = float(cgm_data["glucose_mg_dl"].iloc[-1]) if not cgm_data.empty else 120
 
-        # Simulate trajectory
-        trajectory = [{"time": 0, "glucose": current_glucose}]
-
-        for t in range(15, 181, 15):
-            glucose = current_glucose
-
-            # Meal effect (glucose rise)
-            if request.carbs_grams:
-                meal_peak = 60  # Peak at 60 min
-                meal_effect = request.carbs_grams * 3 * np.exp(-((t - meal_peak) ** 2) / (2 * 30 ** 2))
-                glucose += meal_effect
-
-            # Insulin effect (glucose drop)
-            if request.insulin_units:
-                insulin_peak = 90  # Peak at 90 min
-                correction_factor = 50  # mg/dL per unit
-                insulin_effect = request.insulin_units * correction_factor * (
-                    1 - np.exp(-t / 30)
-                ) * np.exp(-(t - insulin_peak) / 120)
-                glucose -= insulin_effect
-
-            # Exercise effect
-            if request.exercise_minutes and t <= request.exercise_minutes + 60:
-                intensity_factor = {"light": 0.5, "moderate": 1.0, "vigorous": 1.5}.get(
-                    request.exercise_intensity, 1.0
-                )
-                exercise_effect = 0.3 * intensity_factor * min(t, request.exercise_minutes)
-                glucose -= exercise_effect
-
-            trajectory.append({"time": t, "glucose": round(max(40, min(400, glucose)), 1)})
+        # Use inference service for simulation
+        if inference_service is not None and not cgm_data.empty:
+            trajectory = inference_service.simulate_scenario(
+                cgm_data,
+                carbs_grams=request.carbs_grams or 0,
+                insulin_units=request.insulin_units or 0,
+                exercise_minutes=request.exercise_minutes or 0,
+                exercise_intensity=request.exercise_intensity or "moderate",
+            )
+        else:
+            # Fallback simulation
+            trajectory = [{"time": 0, "glucose": current_glucose}]
+            for t in range(15, 181, 15):
+                glucose = current_glucose
+                if request.carbs_grams:
+                    meal_effect = request.carbs_grams * 3 * np.exp(-((t - 60) ** 2) / (2 * 30 ** 2))
+                    glucose += meal_effect
+                if request.insulin_units:
+                    insulin_effect = request.insulin_units * 50 * (1 - np.exp(-t / 30)) * np.exp(-(t - 90) / 120)
+                    glucose -= insulin_effect
+                if request.exercise_minutes and t <= request.exercise_minutes + 60:
+                    intensity_factor = {"light": 0.5, "moderate": 1.0, "vigorous": 1.5}.get(request.exercise_intensity, 1.0)
+                    glucose -= 0.3 * intensity_factor * min(t, request.exercise_minutes)
+                trajectory.append({"time": t, "glucose": round(max(40, min(400, glucose)), 1)})
 
         # Find peak and baseline return
         glucose_values = [p["glucose"] for p in trajectory]
         peak_glucose = max(glucose_values)
         peak_time = trajectory[glucose_values.index(peak_glucose)]["time"]
 
-        # Estimate time to return to baseline
-        baseline_threshold = current_glucose + 10
         time_to_baseline = 180
         for point in trajectory:
-            if point["time"] > peak_time and point["glucose"] <= baseline_threshold:
+            if point["time"] > peak_time and point["glucose"] <= current_glucose + 10:
                 time_to_baseline = point["time"]
                 break
 
@@ -411,7 +418,7 @@ async def simulate_scenario(request: SimulationRequest):
         if peak_glucose > 180:
             recommendations.append("Consider pre-bolusing 15-20 minutes before eating")
         if peak_glucose > 200 and request.carbs_grams:
-            recommended_insulin = request.carbs_grams / 10  # Assuming 1:10 ratio
+            recommended_insulin = request.carbs_grams / 10
             recommendations.append(f"Suggested bolus: {recommended_insulin:.1f} units")
         if min(glucose_values) < 70:
             recommendations.append("Risk of hypoglycemia - reduce insulin or add carbs")

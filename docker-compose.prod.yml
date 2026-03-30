@@ -1,0 +1,49 @@
+# Production Docker Compose for Diabetes Digital Twin
+# Use: docker compose -f docker-compose.prod.yml up
+
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/digital_twin.db}
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
+      - MODEL_PATH=/app/checkpoints/best_model.pt
+    volumes:
+      - ./checkpoints:/app/checkpoints:ro
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: streamlit run src/frontend/app.py --server.port=8501 --server.address=0.0.0.0
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://api:8080/api/v1
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  # Optional: Redis for caching (improves performance)
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+networks:
+  default:
+    name: digital-twin-network

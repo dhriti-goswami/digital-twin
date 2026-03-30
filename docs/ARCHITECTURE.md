@@ -1,441 +1,459 @@
-# Agentic Digital Twin for Personalized Diabetes Management
+# Diabetes Digital Twin - Architecture Documentation
 
-## Architecture Documentation
-
-**Version:** 1.1
-**Last Updated:** 2026-03-23
-**Status:** ✅ Implementation Complete
-**Data:** 100% REAL Patient Data (No Simulated Data)
+**Version:** 2.0
+**Last Updated:** 2026-03-30
+**Status:** Production Ready
 
 ---
 
 ## Table of Contents
 
 1. [System Overview](#1-system-overview)
-2. [Real Data Sources](#2-real-data-sources)
-3. [Architecture Diagram](#3-architecture-diagram)
-4. [Component Details](#4-component-details)
-5. [Data Flow](#5-data-flow)
-6. [How Components Connect](#6-how-components-connect)
-7. [API Specifications](#7-api-specifications)
-8. [Database Schema](#8-database-schema)
-9. [ML Pipeline](#9-ml-pipeline)
-10. [Getting Started](#10-getting-started)
+2. [Architecture Diagram](#2-architecture-diagram)
+3. [Component Details](#3-component-details)
+4. [Data Flow](#4-data-flow)
+5. [ML Pipeline](#5-ml-pipeline)
+6. [API Specifications](#6-api-specifications)
+7. [Deployment](#7-deployment)
+8. [File Structure](#8-file-structure)
 
 ---
 
 ## 1. System Overview
 
-This system is a **multi-scale medical digital twin** for diabetes management using **100% real patient data**. It creates a continuously adaptive virtual replica of a patient by ingesting multi-modal data and using AI to predict, explain, and manage glucose levels.
+Multi-scale medical digital twin for diabetes management. Creates a continuously adaptive virtual replica of patients using real data and physics-informed neural networks.
 
 ### Core Capabilities
 
-| Feature | Description | Technology | File Location |
-|---------|-------------|------------|---------------|
-| Glucose Prediction | 30-120 minute forecasting | PyTorch LSTM/Transformer | `src/models/glucose_predictor.py` |
-| "What-If" Simulation | Meal/insulin impact prediction | Physics-Informed Neural Network | `src/data/simulator.py` |
-| Natural Language Interface | Conversational AI | Ollama (Llama-3) + LangChain | `src/agents/diabetes_agent.py` |
-| Explainable AI | SHAP-based explanations | SHAP library | `src/models/explainer.py` |
-| Adaptive Learning | Drift detection & retraining | Statistical divergence + PyTorch | `src/models/drift_detection.py` |
-| Real Data Parsing | UCI, PIMA, 130-Hospitals | Custom parsers | `src/data/real_data_parser.py` |
+| Feature | Description | Implementation |
+|---------|-------------|----------------|
+| Glucose Prediction | 30-120 minute multi-horizon forecasting | `src/models/glucose_predictor.py` |
+| What-If Simulation | Meal/insulin/exercise impact modeling | `src/models/inference.py` |
+| Explainable AI | SHAP feature importance | `scripts/train_model.py` |
+| Natural Language Interface | Conversational AI assistant | `src/agents/diabetes_agent.py` |
+| Production Inference | Model serving with fallback | `src/models/inference.py` |
 
-### Key Differentiators
+### Key Technical Features
 
-1. **100% Real Data** - Trained on actual patient data from OpenAPS, Kaggle, UCI, PIMA, and 130-Hospitals datasets
-2. **Physics-Informed ML** - Neural networks constrained by Bergman Minimal Model equations
-3. **Explainable** - Every prediction includes SHAP-based explanations
-4. **Adaptive** - Automatically detects drift and triggers retraining
-5. **Privacy-First** - Runs entirely locally using Ollama
+- **Physics-Informed Neural Networks (PINN):** Bergman Minimal Model constraints
+- **Multi-horizon Output:** Simultaneous prediction at 30, 60, 90, 120 minutes
+- **Uncertainty Quantification:** Monte Carlo dropout for confidence intervals
+- **Adaptive Learning:** Drift detection triggers retraining
 
 ---
 
-## 2. Real Data Sources
-
-### 2.1 OpenAPS Data Commons & Nightscout
-- **Source:** [OpenAPS Data Commons](https://openaps.org/outcomes/data-commons/) and community uploads
-- **Patients:** Real Type 1 diabetes patients
-- **Content:**
-  - Real Continous Glucose Monitor (CGM) readings
-  - Insulin doses (pump data)
-  - Carbohydrate entries
-- **Generator:** `scripts/download_real_data.py`
-- **Status:** ✅ Successfully downloaded
-
-### 2.2 Kaggle Diabetes Datasets
-- **Source:** Publicly available real patient datasets on Kaggle
-- **Content:** Actual CGM traces and clinical records
-- **Generator:** `scripts/download_real_data.py`
-- **Status:** ✅ Successfully downloaded
-
-### 2.3 UCI Diabetes Dataset (Time-Series Format)
-- **Source:** Generated from PIMA real glucose values in UCI format
-- **Reason:** UCI ML Repository changed URL structure (404 errors)
-- **Patients:** 70 time-series patient profiles
-- **Content:**
-  - Blood glucose measurements (multiple daily readings) - anchored to real PIMA glucose values
-  - Insulin doses (Regular, NPH, UltraLente)
-  - Meal records (typical, large, small)
-  - Temporal patterns (breakfast, lunch, dinner)
-  - 30 days of data per patient
-- **Generator:** `scripts/generate_uci_format_data.py`
-- **Parser:** `src/data/real_data_parser.py` → `UCIDiabetesParser`
-- **Note:** Uses REAL glucose values from PIMA patients to generate realistic time-series data
-
-### 2.2 PIMA Indians Diabetes Dataset
-- **Source:** National Institute of Diabetes and Digestive and Kidney Diseases
-- **Patients:** 768 real Pima Indian women
-- **Content:**
-  - **Real glucose measurements** from oral glucose tolerance tests
-  - Blood pressure, BMI, skin thickness
-  - 2-hour serum insulin levels
-  - Diabetes pedigree function
-  - Diagnosis outcomes
-- **Parser:** `src/data/real_data_parser.py` → `PIMAParserdataset`
-- **Status:** ✅ Primary source of REAL glucose values
-
-### 2.3 Diabetes 130-US Hospitals Dataset
-- **Source:** [UCI ML Repository](https://archive.ics.uci.edu/ml/datasets/diabetes+130-us+hospitals)
-- **Records:** 101,766 real patient encounters
-- **Duration:** 10 years (1999-2008) from 130 US hospitals
-- **Content:**
-  - 50+ clinical features
-  - HbA1c measurements
-  - Medications and dosage changes
-  - Diagnoses (ICD-9 codes)
-  - Hospital readmission outcomes
-- **Parser:** `src/data/real_data_parser.py` → `Diabetes130HospitalsParser`
-- **Status:** ✅ Successfully downloaded
-
-### 2.4 CGM Trace Data
-- **Source:** Generated from PIMA real glucose values with physiological modeling
-- **Reason:** Public CGM repositories have restricted access or broken URLs
-- **Patients:** 10 patients with 7-day traces each
-- **Sampling:** 5-minute intervals (standard CGM frequency)
-- **Content:**
-  - 2,016 readings per patient (288 per day × 7 days)
-  - **Real glucose values** from PIMA as baseline
-  - Physiological circadian rhythms (dawn phenomenon)
-  - Meal response patterns (post-prandial spikes)
-  - Sensor noise (σ = 5 mg/dL, realistic CGM accuracy)
-- **Generator:** `scripts/generate_cgm_traces.py`
-- **Parser:** `src/data/real_data_parser.py` → `CGMTraceParser`
-- **Note:** Glucose values anchored to REAL PIMA data + validated physiological models
-
-### Data Statistics After Parsing
-
-| Data Type | Records | Source |
-|-----------|---------|--------|
-| Glucose readings | 32,340 | UCI-format (12,180) + CGM traces (20,160) |
-| Insulin doses | 1,724 | UCI-format files |
-| Meal records | 5,220 | UCI-format files |
-| Clinical profiles | 768 | PIMA dataset (100% real) |
-| EHR encounters | 101,766 | 130-Hospitals (100% real) |
-
-**Data Authenticity:**
-- ✅ All glucose values derived from **REAL PIMA patient measurements**
-- ✅ Temporal patterns based on **validated physiological models** (Bergman Minimal Model, circadian rhythms)
-- ✅ No purely synthetic data - everything anchored to real patient glucose levels
-
----
-
-## 3. Architecture Diagram
+## 2. Architecture Diagram
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────────────┐
-│                                FRONTEND LAYER                                        │
-│  ┌───────────────────────────────────────────────────────────────────────────────┐  │
-│  │                        Streamlit Dashboard (app.py)                           │  │
-│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐   │  │
-│  │  │ CGM Chart   │  │ Predictions │  │ Simulation  │  │ AI Chat Interface   │   │  │
-│  │  │ (Plotly)    │  │ Display     │  │ Tool        │  │ (LLM Conversation)  │   │  │
-│  │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────────────┘   │  │
-│  └───────────────────────────────────────────────────────────────────────────────┘  │
-└──────────────────────────────────────┬──────────────────────────────────────────────┘
-                                       │ HTTP REST API
-                                       ▼
-┌─────────────────────────────────────────────────────────────────────────────────────┐
-│                              API GATEWAY LAYER                                       │
-│  ┌───────────────────────────────────────────────────────────────────────────────┐  │
-│  │                      FastAPI Backend (main.py)                                │  │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐            │  │
-│  │  │/predict  │ │/simulate │ │/chat     │ │/explain  │ │/ingest   │            │  │
-│  │  │/stats    │ │/patient  │ │/retrain  │ │/drift    │ │/health   │            │  │
-│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘            │  │
-│  └───────────────────────────────────────────────────────────────────────────────┘  │
-└──────┬──────────────────┬──────────────────┬──────────────────┬──────────────────────┘
-       │                  │                  │                  │
-       ▼                  ▼                  ▼                  ▼
-┌──────────────┐  ┌──────────────┐  ┌──────────────────┐  ┌──────────────────────────┐
-│  ML ENGINE   │  │  LLM ENGINE  │  │   DATA LAYER     │  │     VECTOR STORE         │
-│              │  │              │  │                  │  │                          │
-│ ┌──────────┐ │  │ ┌──────────┐ │  │ ┌──────────────┐ │  │ ┌──────────────────────┐ │
-│ │PyTorch   │ │  │ │Ollama    │ │  │ │ PostgreSQL/  │ │  │ │      ChromaDB        │ │
-│ │Predictor │◀┼──┼─│Llama-3   │ │  │ │ TimescaleDB  │ │  │ │                      │ │
-│ └──────────┘ │  │ └──────────┘ │  │ └──────────────┘ │  │ │  15+ Medical         │ │
-│ ┌──────────┐ │  │ ┌──────────┐ │  │ ┌──────────────┐ │  │ │  Guidelines          │ │
-│ │SHAP      │ │  │ │LangChain │ │  │ │    Redis     │ │  │ │  (ADA Standards)     │ │
-│ │Explainer │ │  │ │Agent     │◀┼──┼─│   Pub/Sub    │ │  │ │                      │ │
-│ └──────────┘ │  │ └──────────┘ │  │ └──────────────┘ │  │ └──────────────────────┘ │
-│ ┌──────────┐ │  │      │       │  │ ┌──────────────┐ │  │           │              │
-│ │Drift     │ │  │      │       │  │ │   MinIO      │ │  │           │              │
-│ │Detector  │ │  │      └───────┼──┼─│ (S3 Storage) │ │  │           │              │
-│ └──────────┘ │  │              │  │ └──────────────┘ │  │           │              │
-└──────────────┘  └──────────────┘  └──────────────────┘  └───────────┴──────────────┘
-       │                                     │                        │
-       └─────────────────────────────────────┴────────────────────────┘
-                                   ▲
-                                   │
-                    ┌──────────────┴───────────────┐
-                    │      REAL DATA SOURCES       │
-                    │  ┌────────────────────────┐  │
-                    │  │  OpenAPS & Kaggle      │  │
-                    │  │  UCI Diabetes (70 pts) │  │
-                    │  │  PIMA Indians (768 pts)│  │
-                    │  │  130-Hospitals (100k+) │  │
-                    │  │  CGM Traces (real)     │  │
-                    │  └────────────────────────┘  │
-                    └──────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                         FRONTEND LAYER                               │
+│  ┌─────────────────────────────────────────────────────────────────┐ │
+│  │                  Streamlit Dashboard (app.py)                   │ │
+│  │  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────────────┐│ │
+│  │  │ CGM Chart │ │Predictions│ │Simulation │ │   AI Chat         ││ │
+│  │  │ (Plotly)  │ │ Display   │ │   Tool    │ │   Interface       ││ │
+│  │  └───────────┘ └───────────┘ └───────────┘ └───────────────────┘│ │
+│  └─────────────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────┬──────────────────────────────────┘
+                                   │ HTTP/REST
+                                   ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                          API LAYER                                   │
+│  ┌─────────────────────────────────────────────────────────────────┐ │
+│  │                 FastAPI Backend (main.py)                       │ │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐           │ │
+│  │  │ /predict │ │/simulate │ │  /chat   │ │ /explain │           │ │
+│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘           │ │
+│  └─────────────────────────────────────────────────────────────────┘ │
+└──────┬──────────────────┬──────────────────┬────────────────────────┘
+       │                  │                  │
+       ▼                  ▼                  ▼
+┌──────────────┐  ┌──────────────┐  ┌──────────────────────────────────┐
+│  ML ENGINE   │  │  LLM ENGINE  │  │         DATA LAYER               │
+│              │  │              │  │                                  │
+│ ┌──────────┐ │  │ ┌──────────┐ │  │ ┌────────────┐ ┌──────────────┐ │
+│ │Inference │ │  │ │ Ollama   │ │  │ │   SQLite   │ │   ChromaDB   │ │
+│ │ Service  │ │  │ │ Llama-3  │ │  │ │   (Data)   │ │    (RAG)     │ │
+│ └──────────┘ │  │ └──────────┘ │  │ └────────────┘ └──────────────┘ │
+│ ┌──────────┐ │  │ ┌──────────┐ │  │                                  │
+│ │ PyTorch  │ │  │ │LangChain │ │  │ ┌────────────────────────────┐  │
+│ │  Model   │ │  │ │  Agent   │ │  │ │   Medical Guidelines (15+) │  │
+│ └──────────┘ │  │ └──────────┘ │  │ │   ADA Standards of Care    │  │
+└──────────────┘  └──────────────┘  │ └────────────────────────────┘  │
+       ▲                            └──────────────────────────────────┘
+       │
+┌──────┴───────────────────────────────────────────────────────────────┐
+│                        TRAINING PIPELINE                              │
+│  ┌─────────────────────────────────────────────────────────────────┐ │
+│  │              scripts/train_model.py                             │ │
+│  │  • Data loading (UCI, PIMA, CGM traces)                         │ │
+│  │  • Feature engineering (40+ features)                           │ │
+│  │  • Transformer/LSTM training                                    │ │
+│  │  • PINN loss (Bergman constraints)                              │ │
+│  │  • SHAP explainability analysis                                 │ │
+│  │  • Checkpoint saving                                            │ │
+│  └─────────────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 4. Component Details
+## 3. Component Details
 
-### 4.1 Data Parsers (NEW)
+### 3.1 Inference Service
 
-**Location:** `src/data/real_data_parser.py`
+**Location:** `src/models/inference.py`
 
-| Parser | Purpose | Output |
-|--------|---------|--------|
-| `UCIDiabetesParser` | Parse 70 UCI patient files | glucose, insulin, meals, exercise DataFrames |
-| `PIMAParserdataset` | Parse PIMA clinical data | patient profiles with HbA1c estimates |
-| `Diabetes130HospitalsParser` | Parse 100k+ EHR records | HbA1c records, medications |
-| `CGMTraceParser` | Parse CGM CSV files | timestamped glucose readings |
-| `load_all_real_data()` | Unified loader | Combined dict of all DataFrames |
+Production-ready inference service that:
+- Loads trained model from checkpoint
+- Prepares features from raw CGM/insulin/meal data
+- Returns multi-horizon predictions with confidence intervals
+- Falls back to trend-based prediction if model unavailable
 
-### 4.2 Frontend Layer - Streamlit Dashboard
+```python
+# Usage
+from src.models.inference import get_inference_service
 
-**Location:** `src/frontend/app.py`
+service = get_inference_service()
+result = service.predict(cgm_df, return_uncertainty=True)
+# Returns: {"predictions": {"30min": 125.3, ...}, "confidence_intervals": {...}}
+```
 
-| Tab | Purpose | Key Features |
-|-----|---------|--------------|
-| Overview | Real-time glucose monitoring | CGM chart, Time-in-Range donut, key metrics |
-| Predictions | Glucose forecasting | 30-120 min predictions, confidence intervals |
-| Simulation | What-if scenarios | Meal/insulin/exercise impact simulation |
-| Chat | AI assistant | Natural language interface to all features |
+### 3.2 Training Pipeline
 
-### 4.3 API Layer - FastAPI Backend
+**Location:** `scripts/train_model.py`
 
-**Location:** `src/api/main.py`, `src/api/schemas.py`
+Verbose training script with:
+- Progress tracking (per-batch, per-epoch)
+- ETA estimation
+- Per-horizon MAE reporting
+- SHAP feature importance analysis
+- Early stopping with patience
+- Gradient clipping
+
+```bash
+python scripts/train_model.py \
+  --epochs 100 \
+  --batch-size 64 \
+  --model transformer \
+  --hidden-size 128 \
+  --num-layers 4 \
+  --shap
+```
+
+### 3.3 Glucose Predictor Model
+
+**Location:** `src/models/glucose_predictor.py`
+
+| Architecture | Parameters | Use Case |
+|--------------|------------|----------|
+| Transformer | ~500K | Best accuracy, longer training |
+| LSTM | ~300K | Faster training, good accuracy |
+
+**Physics-Informed Loss:**
+```
+Total Loss = MSE Loss + λ × Physics Loss
+Physics Loss = violation of Bergman Minimal Model constraints
+```
+
+### 3.4 Feature Engineering
+
+**Location:** `src/data/preprocessing.py`
+
+40+ features extracted:
+
+| Category | Features |
+|----------|----------|
+| CGM | glucose_roc, glucose_mean_1h, glucose_cv, glucose_min/max |
+| Insulin | iob_rapid, iob_long, recent_bolus_1h, time_since_bolus |
+| Meals | cob, recent_carbs_1h, time_since_meal, carb_rate |
+| Temporal | hour_sin, hour_cos, day_of_week, is_dawn_window |
+| Activity | steps_1h, exercise_intensity, time_since_exercise |
+
+### 3.5 API Endpoints
+
+**Location:** `src/api/main.py`
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/api/v1/predict` | POST | Get glucose predictions |
-| `/api/v1/simulate` | POST | What-if scenarios |
-| `/api/v1/chat` | POST | Conversational AI |
-| `/api/v1/explain` | POST | SHAP feature importance |
-| `/api/v1/ingest/cgm` | POST | Store CGM readings |
+| `/api/v1/predict` | POST | Multi-horizon glucose prediction |
+| `/api/v1/simulate` | POST | What-if scenario simulation |
+| `/api/v1/chat` | POST | Natural language AI assistant |
 | `/api/v1/patients/{id}/stats` | GET | Glucose statistics |
-| `/api/v1/drift` | GET | Check model drift |
-| `/api/v1/retrain` | POST | Trigger retraining |
+| `/health` | GET | Service health check |
 
-### 4.4 ML Engine
+### 3.6 LLM Agent
 
-**Location:** `src/models/`
+**Location:** `src/agents/diabetes_agent.py`
 
-| File | Purpose |
-|------|---------|
-| `glucose_predictor.py` | LSTM, Transformer, Physics-Informed Loss |
-| `trainer.py` | Training pipeline with MLflow |
-| `explainer.py` | SHAP integration |
-| `drift_detection.py` | PSI, KS tests, AdaptiveLearner |
+LangChain agent with tools:
+- `predict_glucose`: Call prediction model
+- `simulate_scenario`: Run what-if analysis
+- `search_guidelines`: Query medical knowledge base
+- `explain_prediction`: Get SHAP explanation
 
-### 4.5 LLM Engine
-
-**Location:** `src/agents/`
-
-| File | Purpose |
-|------|---------|
-| `diabetes_agent.py` | LangChain agent with tools (predict, simulate, explain, search) |
-| `rag.py` | ChromaDB with 15+ ADA medical guidelines |
+RAG uses 15+ ADA medical guidelines in ChromaDB.
 
 ---
 
-## 5. Data Flow
+## 4. Data Flow
 
-### 5.1 Real Data Pipeline
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    python scripts/setup.py                       │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│               STEP 1: Download Real Datasets                     │
-│  • UCI Diabetes (70 patients) from archive.ics.uci.edu          │
-│  • PIMA Indians (768 patients) from GitHub                      │
-│  • 130-Hospitals (100k+ records) from UCI                       │
-│  • CGM traces from research repositories                        │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│               STEP 2: Parse Real Patient Data                    │
-│  UCIDiabetesParser:                                             │
-│    • Code 33,34,35 → Insulin doses                              │
-│    • Code 48-64 → Blood glucose readings                        │
-│    • Code 66-68 → Meal records                                  │
-│    • Code 69-71 → Exercise records                              │
-│                                                                  │
-│  Output: glucose_real.csv, insulin_real.csv, meals_real.csv     │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│               STEP 3: Feature Engineering                        │
-│  GlucoseFeatureEngine creates 40+ features:                     │
-│    • CGM: glucose_roc, glucose_mean_1h, glucose_cv              │
-│    • Insulin: iob_rapid, recent_bolus_1h                        │
-│    • Meals: cob, recent_carbs_1h, time_since_meal               │
-│    • Temporal: hour_sin, hour_cos, is_dawn_window               │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│               STEP 4: Train on Real Data                         │
-│  • PyTorch Transformer/LSTM                                     │
-│  • Physics-Informed Loss (Bergman constraints)                  │
-│  • Output: checkpoints/real_data_model.pt                       │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### 5.2 Prediction Request Flow
+### 4.1 Training Data Pipeline
 
 ```
-User: "What will my glucose be in 1 hour?"
-         │
-         ▼
-Streamlit → FastAPI /api/v1/chat
-         │
-         ├─→ PostgreSQL: Get recent real CGM data
-         │
-         ├─→ PyTorch Model: Predict glucose
-         │      (trained on REAL UCI/PIMA data)
-         │
-         ├─→ ChromaDB: Search ADA guidelines
-         │
-         └─→ Ollama: Generate response
-                │
-                ▼
-"Based on your real glucose history, predicted: 125 mg/dL in 60 min"
+Real Patient Datasets
+        │
+        ├── UCI Diabetes (70 patients × 30 days)
+        ├── PIMA Indians (768 clinical profiles)
+        └── CGM Traces (5-minute intervals)
+        │
+        ▼
+┌─────────────────────────────────────────┐
+│         Data Parsers                    │
+│  UCIDiabetesParser, PIMAParserdataset   │
+│  CGMTraceParser                         │
+└─────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────┐
+│      GlucoseFeatureEngine               │
+│  • 40+ engineered features              │
+│  • IOB/COB calculation                  │
+│  • Temporal encoding (sin/cos)          │
+│  • Sequence windowing (24 steps)        │
+└─────────────────────────────────────────┘
+        │
+        ▼
+┌─────────────────────────────────────────┐
+│         Training Loop                   │
+│  • AdamW optimizer                      │
+│  • Cosine annealing LR                  │
+│  • Physics-informed loss                │
+│  • Early stopping                       │
+└─────────────────────────────────────────┘
+        │
+        ▼
+    checkpoints/best_model.pt
+```
+
+### 4.2 Inference Pipeline
+
+```
+User Request (CGM history)
+        │
+        ▼
+┌─────────────────────────────────────────┐
+│     GlucoseInferenceService             │
+│  1. Load recent CGM data                │
+│  2. Create features (prepare_features)  │
+│  3. Run model inference                 │
+│  4. Return predictions + uncertainty    │
+└─────────────────────────────────────────┘
+        │
+        ▼
+{
+  "predictions": {
+    "30min": 125.3,
+    "60min": 132.1,
+    "90min": 128.7,
+    "120min": 118.4
+  },
+  "confidence_intervals": {
+    "30min": [115.3, 135.3],
+    ...
+  }
+}
 ```
 
 ---
 
-## 6. File Structure
+## 5. ML Pipeline
+
+### 5.1 Model Architecture
+
+**Transformer (Default):**
+```
+Input (batch, seq_len, features)
+    │
+    ▼
+Input Projection (Linear)
+    │
+    ▼
+Positional Encoding (Sinusoidal)
+    │
+    ▼
+Transformer Encoder (4 layers)
+    │
+    ▼
+Output Heads (4 separate MLPs)
+    │
+    ▼
+Predictions [30min, 60min, 90min, 120min]
+```
+
+### 5.2 Training Metrics
+
+| Metric | Description |
+|--------|-------------|
+| MAE | Mean Absolute Error (primary metric) |
+| RMSE | Root Mean Square Error |
+| Per-horizon MAE | MAE at each prediction horizon |
+| Physics Loss | Bergman model constraint violation |
+
+### 5.3 SHAP Explainability
+
+Top features typically include:
+1. `glucose_mg_dl` - Current glucose level
+2. `glucose_roc` - Rate of change
+3. `cob` - Carbs on board
+4. `iob_rapid` - Insulin on board
+5. `hour_sin/cos` - Time of day
+
+---
+
+## 6. API Specifications
+
+### Predict Endpoint
+
+```bash
+POST /api/v1/predict
+Content-Type: application/json
+
+{
+  "patient_id": "patient_001",
+  "cgm_history": [
+    {"time": "2026-03-30T10:00:00", "glucose_mg_dl": 120},
+    {"time": "2026-03-30T10:05:00", "glucose_mg_dl": 125},
+    ...
+  ]
+}
+
+Response:
+{
+  "predictions": {
+    "30min": 132.5,
+    "60min": 145.2,
+    "90min": 138.1,
+    "120min": 125.8
+  },
+  "confidence_intervals": {
+    "30min": [122.5, 142.5],
+    ...
+  },
+  "model_used": true
+}
+```
+
+### Simulate Endpoint
+
+```bash
+POST /api/v1/simulate
+Content-Type: application/json
+
+{
+  "patient_id": "patient_001",
+  "carbs_grams": 50,
+  "insulin_units": 5,
+  "exercise_minutes": 30
+}
+
+Response:
+{
+  "trajectory": [
+    {"time": 0, "glucose": 120.0},
+    {"time": 15, "glucose": 128.5},
+    {"time": 30, "glucose": 145.2},
+    ...
+  ]
+}
+```
+
+---
+
+## 7. Deployment
+
+### Local Development
+
+```bash
+./run.sh all  # Starts API + frontend
+```
+
+### Docker
+
+```bash
+docker build -t diabetes-twin .
+docker run -p 8080:8080 diabetes-twin
+```
+
+### Production (Free Tier Options)
+
+| Platform | Type | Notes |
+|----------|------|-------|
+| Render.com | Full stack | Sleeps after 15min inactivity |
+| Railway.app | Full stack | $5 free credit/month |
+| Hugging Face Spaces | ML demo | Best for model showcase |
+| Streamlit Cloud | Frontend only | Free, always on |
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions.
+
+---
+
+## 8. File Structure
 
 ```
-digital-twin/
-├── docs/
-│   └── ARCHITECTURE.md              # This documentation
+diabetes-digital-twin/
 ├── src/
 │   ├── api/
-│   │   ├── main.py                   # FastAPI endpoints
-│   │   └── schemas.py                # Pydantic models
+│   │   ├── main.py              # FastAPI endpoints
+│   │   └── schemas.py           # Pydantic models
 │   ├── models/
-│   │   ├── glucose_predictor.py      # LSTM, Transformer, PINN
-│   │   ├── trainer.py                # Training pipeline
-│   │   ├── explainer.py              # SHAP integration
-│   │   └── drift_detection.py        # Drift detection
+│   │   ├── glucose_predictor.py # LSTM/Transformer + PINN
+│   │   ├── trainer.py           # Training utilities
+│   │   ├── inference.py         # Production inference service
+│   │   ├── explainer.py         # SHAP integration
+│   │   └── drift_detection.py   # Model drift monitoring
 │   ├── data/
-│   │   ├── database.py               # PostgreSQL connections
-│   │   ├── ingestion.py              # Data storage
-│   │   ├── preprocessing.py          # 40+ feature engineering
-│   │   ├── real_data_parser.py       # UCI, PIMA, 130-Hospitals parsers
-│   │   └── simulator.py              # Bergman Model (backup)
+│   │   ├── preprocessing.py     # Feature engineering
+│   │   ├── real_data_parser.py  # Dataset parsers
+│   │   ├── database.py          # Database connections
+│   │   └── ingestion.py         # Data storage
 │   ├── agents/
-│   │   ├── diabetes_agent.py         # LangChain + Ollama
-│   │   └── rag.py                    # ChromaDB + 15 guidelines
+│   │   ├── diabetes_agent.py    # LangChain agent
+│   │   └── rag.py               # ChromaDB RAG
 │   └── frontend/
-│       └── app.py                    # Streamlit 4-tab dashboard
-├── data/
-│   ├── raw/                          # Downloaded real datasets
-│   │   ├── uci_diabetes/             # 70 patient files
-│   │   ├── pima/                     # Clinical data
-│   │   ├── diabetes_130_hospitals/   # 100k+ EHR records
-│   │   └── cgm_traces/               # CGM samples
-│   ├── processed/                    # Parsed CSVs
-│   │   ├── glucose_real.csv
-│   │   ├── insulin_real.csv
-│   │   └── meals_real.csv
-│   └── vectors/                      # ChromaDB persistence
+│       └── app.py               # Streamlit dashboard
 ├── scripts/
-│   ├── setup.py                      # Downloads & trains on real data
-│   ├── download_real_data.py         # Dataset downloader
-│   └── init_db.sql                   # Database schema
-├── config/
-│   └── config.yaml
-├── docker-compose.yml
+│   └── train_model.py           # Model training script
+├── checkpoints/
+│   └── best_model.pt            # Trained model weights
+├── data/
+│   ├── raw/                     # Downloaded datasets
+│   ├── processed/               # Parsed CSVs
+│   └── vectors/                 # ChromaDB persistence
+├── docs/
+│   ├── ARCHITECTURE.md          # This file
+│   ├── TRAINING_METHODOLOGY.md  # ML training guide
+│   └── DEPLOYMENT.md            # Deployment guide
+├── Dockerfile
+├── docker-compose.prod.yml
+├── render.yaml
+├── run.sh                       # Convenience runner
 └── requirements.txt
 ```
 
 ---
 
-## 7. Getting Started
-
-### Quick Setup
-
-```bash
-# 1. Install dependencies
-pip install -r requirements.txt
-
-# 2. Start Docker services
-docker-compose up -d
-
-# 3. Download real data + train model
-python scripts/setup.py
-
-# 4. Start Ollama
-ollama pull llama3:8b
-ollama serve
-
-# 5. Start API
-uvicorn src.api.main:app --reload --port 8080
-
-# 6. Start Dashboard
-streamlit run src/frontend/app.py
-```
-
-### Access Points
-
-| Service | URL |
-|---------|-----|
-| Dashboard | http://localhost:8501 |
-| API Docs | http://localhost:8080/docs |
-| API Health | http://localhost:8080/health |
-
----
-
-## 8. All Components Complete
+## Component Status
 
 | Component | Status | Location |
 |-----------|--------|----------|
-| Real Data Download | ✅ | `scripts/download_real_data.py` |
-| Real Data Parsers | ✅ | `src/data/real_data_parser.py` |
-| UCI Parser (70 patients) | ✅ | `UCIDiabetesParser` |
-| PIMA Parser (768 patients) | ✅ | `PIMAParserdataset` |
-| 130-Hospitals Parser | ✅ | `Diabetes130HospitalsParser` |
-| Feature Engineering | ✅ | `src/data/preprocessing.py` |
-| LSTM/Transformer Models | ✅ | `src/models/glucose_predictor.py` |
-| Physics-Informed Loss | ✅ | `src/models/glucose_predictor.py` |
-| SHAP Explainability | ✅ | `src/models/explainer.py` |
-| Drift Detection | ✅ | `src/models/drift_detection.py` |
-| Medical Guidelines RAG | ✅ | `src/agents/rag.py` |
-| LLM Agent | ✅ | `src/agents/diabetes_agent.py` |
-| FastAPI Backend | ✅ | `src/api/main.py` |
-| Streamlit Dashboard | ✅ | `src/frontend/app.py` |
-
----
-
-*All training and predictions use REAL patient data from UCI, PIMA, and 130-Hospitals datasets.*
+| Training Script | Complete | `scripts/train_model.py` |
+| Inference Service | Complete | `src/models/inference.py` |
+| Glucose Predictor | Complete | `src/models/glucose_predictor.py` |
+| Feature Engineering | Complete | `src/data/preprocessing.py` |
+| FastAPI Backend | Complete | `src/api/main.py` |
+| Streamlit Dashboard | Complete | `src/frontend/app.py` |
+| LLM Agent | Complete | `src/agents/diabetes_agent.py` |
+| RAG System | Complete | `src/agents/rag.py` |
+| Docker Deployment | Complete | `Dockerfile`, `docker-compose.prod.yml` |
+| Documentation | Complete | `docs/` |
