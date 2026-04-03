@@ -1,0 +1,28 @@
+{
+  "timestamp": "2026-04-03T22:37:34.519476",
+  "model_path": "checkpoints/best_model.pt",
+  "model_type": "transformer",
+  "total_parameters": 813892,
+  "checkpoint_size_mb": 9.33366584777832,
+  "val_loss": 75.17564611631755,
+  "val_mae": 5.5479350090026855,
+  "val_rmse": 8.670528411865234,
+  "horizon_mae": {
+    "30min": 5.529921531677246,
+    "60min": 3.982203483581543,
+    "90min": 5.104910850524902,
+    "120min": 7.574706077575684
+  },
+  "clinical_rating": "EXCELLENT",
+  "clinical_suitable": true,
+  "inference_time_ms": 1.5824037500033228,
+  "throughput_samples_per_sec": 20222.398992629285,
+  "config": {
+    "model_type": "transformer",
+    "hidden_size": 128,
+    "num_layers": 4,
+    "num_heads": 8,
+    "dropout": 0.1,
+    "use_pinn": true
+  }
+}

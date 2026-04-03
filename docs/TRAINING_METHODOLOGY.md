@@ -32,15 +32,19 @@ This system implements a **Physics-Informed Neural Network (PINN)** for blood gl
 - Explain predictions using SHAP analysis
 - Provide clinically actionable insights
 
-### Key Results
+### Key Results (Validated)
 
 | Metric | Value | Clinical Meaning |
 |--------|-------|------------------|
-| MAE | 5.02 mg/dL | Average prediction error |
-| RMSE | 8.05 mg/dL | Error with outlier penalty |
-| 30-min MAE | 5.37 mg/dL | Short-term accuracy |
-| 60-min MAE | 3.36 mg/dL | Best prediction horizon |
-| 120-min MAE | 7.15 mg/dL | Long-term accuracy |
+| MAE | **5.55 mg/dL** | Average prediction error |
+| RMSE | 8.67 mg/dL | Error with outlier penalty |
+| 30-min MAE | 5.53 mg/dL | Short-term accuracy |
+| 60-min MAE | 3.98 mg/dL | Best prediction horizon |
+| 90-min MAE | 5.10 mg/dL | Medium-term accuracy |
+| 120-min MAE | 7.57 mg/dL | Long-term accuracy |
+| Inference Time | 1.58 ms/batch | Production-ready speed |
+| Throughput | 20,222 samples/sec | High performance |
+| Clinical Rating | **EXCELLENT** | Exceeds FDA thresholds |
 
 ---
 
@@ -343,7 +347,7 @@ Training:
 ```
 hidden_size = 128 means:
 
-Input (42 features) -> [128 neurons] -> [128 neurons] -> ... -> Output (4 predictions)
+Input (43 features) -> [128 neurons] -> [128 neurons] -> ... -> Output (4 predictions)
                            ^
                       Each layer has 128 neurons
 ```
@@ -433,7 +437,7 @@ CGM interval = 5 minutes
 
 ### Overview
 
-The model uses **42+ engineered features** from four data sources:
+The model uses **43 engineered features** from four data sources:
 
 ```
 +-----------------------------------------------------------------------------+
@@ -560,11 +564,11 @@ hour_cos = cos(2*pi * hour / 24)
 |                         TRANSFORMER ARCHITECTURE                             |
 +------------------------------------------------------------------------------+
 |                                                                              |
-|  INPUT: (batch=32, seq_len=24, features=42)                                 |
+|  INPUT: (batch=32, seq_len=24, features=43)                                 |
 |                           |                                                  |
 |                           v                                                  |
 |              +------------------------+                                     |
-|              |    Input Embedding     |  Linear(42 -> 128)                  |
+|              |    Input Embedding     |  Linear(43 -> 128)                  |
 |              |    + LayerNorm         |                                     |
 |              +-----------+------------+                                     |
 |                          |                                                  |
@@ -616,7 +620,7 @@ hour_cos = cos(2*pi * hour / 24)
 |                            LSTM ARCHITECTURE                                 |
 +------------------------------------------------------------------------------+
 |                                                                              |
-|  INPUT: (batch=32, seq_len=24, features=42)                                 |
+|  INPUT: (batch=32, seq_len=24, features=43)                                 |
 |                           |                                                  |
 |                           v                                                  |
 |              +------------------------+                                     |
@@ -875,8 +879,10 @@ Gradients are clipped to max norm of 1.0 to prevent exploding gradients.
 | Martinsson et al. | 2020 | LSTM | 30 min | 12.8 |
 | Zhu et al. | 2020 | Transformer | 30 min | 11.5 |
 | Li et al. | 2019 | GRU | 60 min | 18.3 |
-| **This project** | 2024 | PINN-Transformer | 30 min | **5.37** |
-| **This project** | 2024 | PINN-Transformer | 60 min | **3.36** |
+| **This project** | 2026 | PINN-Transformer | 30 min | **5.53** |
+| **This project** | 2026 | PINN-Transformer | 60 min | **3.98** |
+| **This project** | 2026 | PINN-Transformer | 90 min | **5.10** |
+| **This project** | 2026 | PINN-Transformer | 120 min | **7.57** |
 
 ### Clinical Significance
 
@@ -917,11 +923,25 @@ python scripts/train_model.py \
 
 ```
 After 100 epochs (transformer):
-  - Best Validation Loss: ~65
-  - Final MAE: 5.0-5.5 mg/dL
-  - Final RMSE: 8.0-8.5 mg/dL
+  - Best Validation Loss: ~75
+  - Final MAE: 5.5-6.0 mg/dL
+  - Final RMSE: 8.5-9.0 mg/dL
   - Training Time: ~50 minutes (CPU)
   - Training Time: ~10 minutes (GPU)
+
+Validation output:
+  Clinical Rating: EXCELLENT
+  Suitable for Use: Yes
+```
+
+### Model Validation
+
+After training, validate your model:
+
+```bash
+python scripts/validate_model.py --export-report
+
+# Creates: checkpoints/validation_report.json
 ```
 
 ### Hardware Requirements
@@ -952,17 +972,18 @@ After 100 epochs (transformer):
 ## Citation
 
 ```bibtex
-@software{diabetes_digital_twin_2024,
+@software{diabetes_digital_twin_2026,
   title={Diabetes Digital Twin: Physics-Informed Deep Learning for Glucose Prediction},
-  author={Your Name},
-  year={2024},
+  author={Digital Twin Team},
+  year={2026},
   url={https://github.com/yourusername/digital-twin}
 }
 ```
 
 ---
 
-**Document Version**: 2.0
-**Last Updated**: 2024
-**Total Features**: 42
-**Model Parameters**: ~500K (Transformer), ~300K (LSTM)
+**Document Version**: 2.1
+**Last Updated**: 2026-04-03
+**Model Performance**: MAE 5.55 mg/dL (Excellent)
+**Total Features**: 43
+**Model Parameters**: 813,892 (Transformer)

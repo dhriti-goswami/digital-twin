@@ -40,12 +40,37 @@ class GlucoseInferenceService:
 
     def _load_model(self, model_path: str) -> bool:
         """Load trained model from checkpoint."""
+        from dataclasses import dataclass
+
         path = Path(model_path)
         if not path.exists():
             logger.warning(f"Model not found at {model_path}")
             return False
 
         try:
+            # Define TrainingConfig for unpickling
+            @dataclass
+            class TrainingConfig:
+                batch_size: int = 32
+                learning_rate: float = 1e-3
+                weight_decay: float = 0.01
+                epochs: int = 100
+                early_stopping_patience: int = 15
+                val_split: float = 0.2
+                gradient_clip: float = 1.0
+                model_type: str = "transformer"
+                hidden_size: int = 128
+                num_layers: int = 4
+                num_heads: int = 8
+                dropout: float = 0.1
+                use_pinn: bool = True
+                pinn_lambda: float = 0.1
+                checkpoint_dir: str = "./checkpoints"
+
+            # Register for unpickling
+            import __main__
+            __main__.TrainingConfig = TrainingConfig
+
             checkpoint = torch.load(path, map_location=self.device, weights_only=False)
 
             # Get config from checkpoint

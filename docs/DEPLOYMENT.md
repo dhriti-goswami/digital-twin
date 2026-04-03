@@ -7,20 +7,65 @@ Deploy your Diabetes Digital Twin to the web for **free**.
 ## Quick Start (Local)
 
 ```bash
-# 1. Train the model first
+# 1. Train the model (skip if you already have checkpoints/best_model.pt)
 python scripts/train_model.py --epochs 100 --shap
 
-# 2. Start the API
-uvicorn src.api.main:app --reload --port 8080
+# 2. Validate the model
+python scripts/validate_model.py --export-report
 
-# 3. Start the frontend (new terminal)
-streamlit run src/frontend/app.py
+# 3. Run the interactive CLI (recommended for testing)
+python -m src.digital_twin
+
+# 4. Or start the API server
+python -m src.digital_twin --mode server
+
+# 5. Or start the dashboard
+python -m src.digital_twin --mode dashboard
 ```
 
 **Access:**
+- Interactive CLI: Terminal
 - API: http://localhost:8080
 - Dashboard: http://localhost:8501
 - API Docs: http://localhost:8080/docs
+
+---
+
+## Usage Modes
+
+### Interactive CLI (Best for Testing)
+
+```bash
+python -m src.digital_twin
+
+# Commands:
+#   /predict  - Get glucose predictions
+#   /explain  - Explain current predictions
+#   /meal N   - Simulate meal with N grams carbs
+#   /glucose N - Update current glucose
+#   /status   - Show current status
+#   /quit     - Exit
+```
+
+### Prediction Only
+
+```bash
+python -m src.digital_twin --mode predict --glucose 145
+
+# Output:
+# Current: 145.0 mg/dL
+# Predictions:
+#   30min: 160.9 mg/dL (150.1-171.7)
+#   60min: 161.3 mg/dL (147.6-175.0)
+#   ...
+```
+
+### Chat Mode (Requires Ollama)
+
+```bash
+# First start Ollama: ollama serve
+python -m src.digital_twin --mode chat --glucose 145 --message "Should I exercise?"
+```
 
 ---
 
