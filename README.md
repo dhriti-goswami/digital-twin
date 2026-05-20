@@ -2,6 +2,23 @@
 
 AI-powered personalized diabetes management system with glucose prediction, what-if simulation, and LLM-powered conversational interface.
 
+## 🚀 Quick Start (One Command!)
+
+```bash
+./start.sh
+```
+
+That's it! The full application will start automatically:
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8080
+- **API Docs**: http://localhost:8080/docs
+
+> **Fish shell users:** `./start.sh` uses a `#!/bin/bash` shebang and works directly. No activation needed — it resolves `.venv/bin/uvicorn` internally.
+
+See [DEPLOY.md](DEPLOY.md) for detailed deployment options.
+
+---
+
 ## Overview
 
 A production-ready digital twin platform that creates a continuously adaptive virtual replica of diabetes patients. Features multi-horizon glucose prediction using Physics-Informed Neural Networks (PINN) trained on real patient data, integrated with an LLM-powered AI assistant.
@@ -31,14 +48,15 @@ A production-ready digital twin platform that creates a continuously adaptive vi
 # 1. Clone and setup
 git clone https://github.com/yourusername/diabetes-digital-twin.git
 cd diabetes-digital-twin
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+cd web && npm install && cd ..
 
-# 2. Run the digital twin (interactive CLI)
-python -m src.digital_twin
-
-# 3. Or start the full stack
-./run.sh all
+# 2. Start the full stack (bash/fish/zsh compatible)
+./start.sh
+# OR manually:
+DB__USE_SQLITE=true .venv/bin/uvicorn src.api.main:app --host 0.0.0.0 --port 8080 &
+cd web && npm run dev
 ```
 
 ## Usage
@@ -89,11 +107,11 @@ python -m src.digital_twin --mode server
 # Swagger docs at http://localhost:8080/docs
 ```
 
-### Streamlit Dashboard
+### Next.js Dashboard
 
 ```bash
-python -m src.digital_twin --mode dashboard
-# Dashboard at http://localhost:8501
+cd web && npm run dev
+# Dashboard at http://localhost:3000
 ```
 
 ## Model Training
