@@ -1,10 +1,12 @@
 """Database connection and session management."""
 
 import logging
+import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import AsyncGenerator
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -12,24 +14,42 @@ from src.utils.config import settings
 
 logger = logging.getLogger(__name__)
 
+# Ensure data directory exists for SQLite
+if settings.db.use_sqlite:
+    db_path = Path(settings.db.sqlite_path)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    logger.info(f"Using SQLite database: {db_path}")
 
 # Synchronous engine (for scripts and migrations)
-sync_engine = create_engine(
-    settings.db.postgres_url,
-    pool_size=10,
-    max_overflow=20,
-    echo=settings.debug,
-)
+if settings.db.use_sqlite:
+    sync_engine = create_engine(
+        settings.db.database_url,
+        connect_args={"check_same_thread": False},  # Required for SQLite
+        echo=settings.debug,
+    )
+else:
+    sync_engine = create_engine(
+        settings.db.database_url,
+        pool_size=10,
+        max_overflow=20,
+        echo=settings.debug,
+    )
 
 SyncSessionLocal = sessionmaker(bind=sync_engine, autocommit=False, autoflush=False)
 
 # Asynchronous engine (for FastAPI)
-async_engine = create_async_engine(
-    settings.db.async_postgres_url,
-    pool_size=10,
-    max_overflow=20,
-    echo=settings.debug,
-)
+if settings.db.use_sqlite:
+    async_engine = create_async_engine(
+        settings.db.async_database_url,
+        echo=settings.debug,
+    )
+else:
+    async_engine = create_async_engine(
+        settings.db.async_database_url,
+        pool_size=10,
+        max_overflow=20,
+        echo=settings.debug,
+    )
 
 AsyncSessionLocal = async_sessionmaker(
     bind=async_engine,
@@ -82,10 +102,13 @@ async def check_database_connection() -> bool:
 
 
 async def init_database():
-    """Initialize database connection and verify tables exist."""
-    logger.info("Initializing database connection...")
+    """Initialize database connection and create tables if needed."""
+    from src.data.models import Base
 
-    if await check_database_connection():
-        logger.info("Database connection successful")
-    else:
-        raise RuntimeError("Failed to connect to database")
+    logger.info("Initializing database...")
+
+    # Create tables if they don't exist
+    async with async_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    logger.info("Database initialized successfully")

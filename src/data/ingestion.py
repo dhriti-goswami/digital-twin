@@ -10,8 +10,12 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from src.data.database import get_sync_session
+from src.utils.config import settings
 
 logger = logging.getLogger(__name__)
+
+# Check if using SQLite
+USE_SQLITE = settings.db.use_sqlite
 
 
 class DataIngestion:
@@ -31,24 +35,44 @@ class DataIngestion:
     ) -> bool:
         """Ingest a single CGM reading."""
         try:
-            self.session.execute(
-                text("""
-                    INSERT INTO cgm_readings (time, patient_id, glucose_mg_dl, trend, trend_rate, device_id)
-                    VALUES (:time, :patient_id, :glucose, :trend, :trend_rate, :device_id)
-                    ON CONFLICT (time, patient_id) DO UPDATE SET
-                        glucose_mg_dl = EXCLUDED.glucose_mg_dl,
-                        trend = EXCLUDED.trend,
-                        trend_rate = EXCLUDED.trend_rate
-                """),
-                {
-                    "time": timestamp,
-                    "patient_id": patient_id,
-                    "glucose": glucose_mg_dl,
-                    "trend": trend,
-                    "trend_rate": trend_rate,
-                    "device_id": device_id,
-                },
-            )
+            if USE_SQLITE:
+                # SQLite compatible upsert
+                self.session.execute(
+                    text("""
+                        INSERT OR REPLACE INTO cgm_readings
+                        (patient_id, time, glucose_mg_dl, trend, trend_rate, device_id, created_at)
+                        VALUES (:patient_id, :time, :glucose, :trend, :trend_rate, :device_id, :created_at)
+                    """),
+                    {
+                        "time": timestamp,
+                        "patient_id": patient_id,
+                        "glucose": glucose_mg_dl,
+                        "trend": trend,
+                        "trend_rate": trend_rate,
+                        "device_id": device_id,
+                        "created_at": datetime.utcnow(),
+                    },
+                )
+            else:
+                # PostgreSQL with ON CONFLICT
+                self.session.execute(
+                    text("""
+                        INSERT INTO cgm_readings (time, patient_id, glucose_mg_dl, trend, trend_rate, device_id)
+                        VALUES (:time, :patient_id, :glucose, :trend, :trend_rate, :device_id)
+                        ON CONFLICT (time, patient_id) DO UPDATE SET
+                            glucose_mg_dl = EXCLUDED.glucose_mg_dl,
+                            trend = EXCLUDED.trend,
+                            trend_rate = EXCLUDED.trend_rate
+                    """),
+                    {
+                        "time": timestamp,
+                        "patient_id": patient_id,
+                        "glucose": glucose_mg_dl,
+                        "trend": trend,
+                        "trend_rate": trend_rate,
+                        "device_id": device_id,
+                    },
+                )
             self.session.commit()
             return True
         except Exception as e:
@@ -112,8 +136,8 @@ class DataIngestion:
         try:
             self.session.execute(
                 text("""
-                    INSERT INTO insulin_doses (time, patient_id, dose_units, insulin_type, is_meal_bolus, is_correction)
-                    VALUES (:time, :patient_id, :dose, :type, :meal, :correction)
+                    INSERT INTO insulin_doses (time, patient_id, dose_units, insulin_type, is_meal_bolus, is_correction, created_at)
+                    VALUES (:time, :patient_id, :dose, :type, :meal, :correction, :created_at)
                 """),
                 {
                     "time": timestamp,
@@ -122,6 +146,7 @@ class DataIngestion:
                     "type": insulin_type,
                     "meal": is_meal_bolus,
                     "correction": is_correction,
+                    "created_at": datetime.utcnow(),
                 },
             )
             self.session.commit()
@@ -147,9 +172,9 @@ class DataIngestion:
             self.session.execute(
                 text("""
                     INSERT INTO meals (time, patient_id, carbs_grams, meal_type, description,
-                                       protein_grams, fat_grams, glycemic_index)
+                                       protein_grams, fat_grams, glycemic_index, created_at)
                     VALUES (:time, :patient_id, :carbs, :meal_type, :description,
-                            :protein, :fat, :gi)
+                            :protein, :fat, :gi, :created_at)
                 """),
                 {
                     "time": timestamp,
@@ -160,6 +185,7 @@ class DataIngestion:
                     "protein": protein_grams,
                     "fat": fat_grams,
                     "gi": glycemic_index,
+                    "created_at": datetime.utcnow(),
                 },
             )
             self.session.commit()
@@ -181,22 +207,20 @@ class DataIngestion:
     ) -> bool:
         """Ingest an activity/exercise record."""
         try:
-            end_time = start_time + timedelta(minutes=duration_minutes)
             self.session.execute(
                 text("""
-                    INSERT INTO activities (start_time, patient_id, end_time, duration_minutes,
-                                           activity_type, intensity, heart_rate_avg, calories_burned)
-                    VALUES (:start, :patient_id, :end, :duration, :type, :intensity, :hr, :calories)
+                    INSERT INTO activities (time, patient_id, duration_minutes,
+                                           activity_type, intensity, calories_burned, created_at)
+                    VALUES (:time, :patient_id, :duration, :type, :intensity, :calories, :created_at)
                 """),
                 {
-                    "start": start_time,
+                    "time": start_time,
                     "patient_id": patient_id,
-                    "end": end_time,
                     "duration": duration_minutes,
                     "type": activity_type,
                     "intensity": intensity,
-                    "hr": heart_rate_avg,
                     "calories": calories_burned,
+                    "created_at": datetime.utcnow(),
                 },
             )
             self.session.commit()
@@ -221,35 +245,108 @@ class DataIngestion:
     ) -> int:
         """Create a new patient record and return the patient ID."""
         try:
-            result = self.session.execute(
-                text("""
-                    INSERT INTO patients (external_id, age, gender, weight_kg, height_cm,
-                                         diabetes_type, hba1c_baseline, total_daily_insulin,
-                                         carb_ratio, correction_factor)
-                    VALUES (:ext_id, :age, :gender, :weight, :height, :dtype,
-                            :hba1c, :tdi, :cr, :cf)
-                    ON CONFLICT (external_id) DO UPDATE SET
-                        age = EXCLUDED.age,
-                        weight_kg = EXCLUDED.weight_kg,
-                        updated_at = NOW()
-                    RETURNING id
-                """),
-                {
-                    "ext_id": external_id,
-                    "age": age,
-                    "gender": gender,
-                    "weight": weight_kg,
-                    "height": height_cm,
-                    "dtype": diabetes_type,
-                    "hba1c": hba1c_baseline,
-                    "tdi": total_daily_insulin,
-                    "cr": carb_ratio,
-                    "cf": correction_factor,
-                },
-            )
-            self.session.commit()
-            row = result.fetchone()
-            return row[0]
+            now = datetime.utcnow()
+
+            if USE_SQLITE:
+                # SQLite compatible - check if exists first
+                existing = self.session.execute(
+                    text("SELECT id FROM patients WHERE external_id = :ext_id"),
+                    {"ext_id": external_id}
+                ).fetchone()
+
+                if existing:
+                    # Update existing patient
+                    self.session.execute(
+                        text("""
+                            UPDATE patients SET
+                                age = :age,
+                                gender = :gender,
+                                weight_kg = :weight,
+                                height_cm = :height,
+                                diabetes_type = :dtype,
+                                hba1c_baseline = :hba1c,
+                                total_daily_insulin = :tdi,
+                                carb_ratio = :cr,
+                                correction_factor = :cf,
+                                updated_at = :updated
+                            WHERE external_id = :ext_id
+                        """),
+                        {
+                            "ext_id": external_id,
+                            "age": age,
+                            "gender": gender,
+                            "weight": weight_kg,
+                            "height": height_cm,
+                            "dtype": diabetes_type,
+                            "hba1c": hba1c_baseline,
+                            "tdi": total_daily_insulin,
+                            "cr": carb_ratio,
+                            "cf": correction_factor,
+                            "updated": now,
+                        },
+                    )
+                    self.session.commit()
+                    return existing[0]
+                else:
+                    # Insert new patient
+                    self.session.execute(
+                        text("""
+                            INSERT INTO patients (external_id, age, gender, weight_kg, height_cm,
+                                                 diabetes_type, hba1c_baseline, total_daily_insulin,
+                                                 carb_ratio, correction_factor, created_at, updated_at)
+                            VALUES (:ext_id, :age, :gender, :weight, :height, :dtype,
+                                    :hba1c, :tdi, :cr, :cf, :created, :updated)
+                        """),
+                        {
+                            "ext_id": external_id,
+                            "age": age,
+                            "gender": gender,
+                            "weight": weight_kg,
+                            "height": height_cm,
+                            "dtype": diabetes_type,
+                            "hba1c": hba1c_baseline,
+                            "tdi": total_daily_insulin,
+                            "cr": carb_ratio,
+                            "cf": correction_factor,
+                            "created": now,
+                            "updated": now,
+                        },
+                    )
+                    self.session.commit()
+                    # Get the last inserted row id
+                    result = self.session.execute(text("SELECT last_insert_rowid()"))
+                    return result.scalar()
+            else:
+                # PostgreSQL with RETURNING
+                result = self.session.execute(
+                    text("""
+                        INSERT INTO patients (external_id, age, gender, weight_kg, height_cm,
+                                             diabetes_type, hba1c_baseline, total_daily_insulin,
+                                             carb_ratio, correction_factor)
+                        VALUES (:ext_id, :age, :gender, :weight, :height, :dtype,
+                                :hba1c, :tdi, :cr, :cf)
+                        ON CONFLICT (external_id) DO UPDATE SET
+                            age = EXCLUDED.age,
+                            weight_kg = EXCLUDED.weight_kg,
+                            updated_at = NOW()
+                        RETURNING id
+                    """),
+                    {
+                        "ext_id": external_id,
+                        "age": age,
+                        "gender": gender,
+                        "weight": weight_kg,
+                        "height": height_cm,
+                        "dtype": diabetes_type,
+                        "hba1c": hba1c_baseline,
+                        "tdi": total_daily_insulin,
+                        "cr": carb_ratio,
+                        "cf": correction_factor,
+                    },
+                )
+                self.session.commit()
+                row = result.fetchone()
+                return row[0]
         except Exception as e:
             logger.error(f"Failed to create patient: {e}")
             self.session.rollback()

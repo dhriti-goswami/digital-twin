@@ -41,11 +41,14 @@ case "$1" in
     api)
         echo -e "${GREEN}Starting API server on http://localhost:8080${NC}"
         echo -e "${BLUE}API docs: http://localhost:8080/docs${NC}"
-        uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8080
+        UVICORN_BIN="uvicorn"
+        if [ -f ".venv/bin/uvicorn" ]; then UVICORN_BIN=".venv/bin/uvicorn";
+        elif [ -f "venv/bin/uvicorn" ]; then UVICORN_BIN="venv/bin/uvicorn"; fi
+        DB__USE_SQLITE=true $UVICORN_BIN src.api.main:app --reload --host 0.0.0.0 --port 8080
         ;;
     frontend)
-        echo -e "${GREEN}Starting Streamlit frontend on http://localhost:8501${NC}"
-        streamlit run src/frontend/app.py --server.port 8501
+        echo -e "${GREEN}Starting Next.js frontend on http://localhost:3000${NC}"
+        cd web && npm run dev
         ;;
     train)
         echo -e "${GREEN}Starting model training...${NC}"
@@ -56,20 +59,24 @@ case "$1" in
         echo ""
         echo -e "${BLUE}Services:${NC}"
         echo "  • API:       http://localhost:8080"
-        echo "  • Frontend:  http://localhost:8501"
+        echo "  • Frontend:  http://localhost:3000"
         echo "  • API Docs:  http://localhost:8080/docs"
         echo ""
 
         # Start API in background
-        uvicorn src.api.main:app --host 0.0.0.0 --port 8080 &
+        UVICORN_BIN="uvicorn"
+        if [ -f ".venv/bin/uvicorn" ]; then UVICORN_BIN=".venv/bin/uvicorn";
+        elif [ -f "venv/bin/uvicorn" ]; then UVICORN_BIN="venv/bin/uvicorn"; fi
+        DB__USE_SQLITE=true $UVICORN_BIN src.api.main:app --host 0.0.0.0 --port 8080 &
         API_PID=$!
 
         # Wait for API to start
         sleep 3
 
-        # Start frontend
-        streamlit run src/frontend/app.py --server.port 8501 &
+        # Start Next.js frontend
+        cd web && npm run dev &
         FRONTEND_PID=$!
+        cd ..
 
         # Handle shutdown
         trap "echo 'Shutting down...'; kill $API_PID $FRONTEND_PID 2>/dev/null" EXIT
@@ -82,7 +89,7 @@ case "$1" in
         echo ""
         echo "Commands:"
         echo "  api       - Start FastAPI backend only"
-        echo "  frontend  - Start Streamlit frontend only"
+        echo "  frontend  - Start Next.js frontend only (port 3000)"
         echo "  train     - Train the model (pass args after, e.g., ./run.sh train --epochs 50)"
         echo "  all       - Start both API and frontend"
         echo ""

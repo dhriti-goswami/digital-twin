@@ -13,6 +13,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict, SettingsConfigDi
 class DatabaseSettings(BaseSettings):
     """Database connection settings."""
 
+    # Use PostgreSQL by default for production
+    # Set DB__USE_SQLITE=true for local development without PostgreSQL
+    use_sqlite: bool = Field(default=False)
+    sqlite_path: str = Field(default="data/digital_twin.db")
+
+    # PostgreSQL settings (used when use_sqlite=False)
     postgres_host: str = Field(default="localhost")
     postgres_port: int = Field(default=5433)
     postgres_db: str = Field(default="digital_twin")
@@ -20,6 +26,20 @@ class DatabaseSettings(BaseSettings):
     postgres_password: str = Field(default="digitaltwin2024")
     redis_host: str = Field(default="localhost")
     redis_port: int = Field(default=6379)
+
+    @property
+    def database_url(self) -> str:
+        """Get the appropriate database URL (SQLite or PostgreSQL)."""
+        if self.use_sqlite:
+            return f"sqlite:///{self.sqlite_path}"
+        return self.postgres_url
+
+    @property
+    def async_database_url(self) -> str:
+        """Get the appropriate async database URL."""
+        if self.use_sqlite:
+            return f"sqlite+aiosqlite:///{self.sqlite_path}"
+        return self.async_postgres_url
 
     @property
     def postgres_url(self) -> str:
