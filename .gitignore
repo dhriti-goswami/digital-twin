@@ -39,6 +39,10 @@ data/processed/*.csv
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 
+# SQLite database
+data/digital_twin.db
+*.db
+
 # Environment variables
 .env
 .env.local
