@@ -140,7 +140,7 @@ class GlucoseInferenceService:
         # Ensure time column exists
         if "timestamp" in cgm_df.columns:
             cgm_df = cgm_df.rename(columns={"timestamp": "time"})
-        cgm_df["time"] = pd.to_datetime(cgm_df["time"])
+        cgm_df["time"] = pd.to_datetime(cgm_df["time"], utc=True).dt.tz_localize(None)
 
         # Add trend if missing
         if "trend" not in cgm_df.columns:
@@ -164,7 +164,8 @@ class GlucoseInferenceService:
 
         # Remove duplicates and non-numeric columns
         all_features = all_features.loc[:, ~all_features.columns.duplicated()]
-        cols_to_drop = ['time', 'trend', 'patient_id']
+        # trend_rate was not in training CSV data — drop it to match model's 43-feature input
+        cols_to_drop = ['time', 'trend', 'patient_id', 'trend_rate']
         all_features = all_features.drop(
             columns=[c for c in cols_to_drop if c in all_features.columns],
             errors='ignore'
