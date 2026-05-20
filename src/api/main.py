@@ -48,6 +48,11 @@ async def lifespan(app: FastAPI):
 
     # Initialize components
     try:
+        # Initialize database (create tables if using SQLite)
+        from src.data.database import init_database
+        await init_database()
+        logger.info("Database initialized")
+
         # Initialize inference service with trained model
         from src.models.inference import get_inference_service
         inference_service = get_inference_service()
@@ -313,8 +318,10 @@ async def predict_glucose(request: PredictionRequest):
             )
             predictions = result["predictions"]
             confidence = result["confidence_intervals"]
+            model_used = result.get("model_used", True)
         else:
-            # Fallback
+            # Fallback: inference service failed to initialize
+            model_used = False
             predictions = {}
             confidence = {}
             for horizon in [30, 60, 90, 120]:
@@ -347,6 +354,7 @@ async def predict_glucose(request: PredictionRequest):
             confidence_intervals=confidence,
             timestamp=datetime.now(),
             risk_level=risk_level,
+            model_used=model_used,
         )
 
     except HTTPException:
@@ -375,7 +383,7 @@ async def simulate_scenario(request: SimulationRequest):
         )
         ingestion.close()
 
-        current_glucose = float(cgm_data["glucose_mg_dl"].iloc[-1]) if not cgm_data.empty else 120
+        current_glucose = float(cgm_data["glucose_mg_dl"].iloc[-1]) if not cgm_data.empty else (request.current_glucose or 120)
 
         # Use inference service for simulation
         if inference_service is not None and not cgm_data.empty:

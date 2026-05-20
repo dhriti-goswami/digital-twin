@@ -77,11 +77,13 @@ class PredictionResponse(BaseModel):
     confidence_intervals: dict[str, tuple[float, float]]
     timestamp: datetime
     risk_level: str  # "low", "normal", "elevated", "high"
+    model_used: bool = True  # False if ML model failed and trend-based fallback was used
 
 
 # Simulation Schemas
 class SimulationRequest(BaseModel):
     patient_id: int
+    current_glucose: Optional[float] = None  # provided by frontend when DB history may be stale
     carbs_grams: Optional[float] = None
     insulin_units: Optional[float] = None
     exercise_minutes: Optional[int] = None
