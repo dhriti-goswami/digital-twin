@@ -1,0 +1,5 @@
+#!/bin/bash
+# Quick start - saves typing!
+
+cd "$(dirname "$0")"
+./start.sh
