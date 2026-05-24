@@ -130,8 +130,9 @@ class GlucoseInferenceService:
         cgm_df: pd.DataFrame,
         insulin_df: pd.DataFrame = None,
         meals_df: pd.DataFrame = None,
+        patient_profile: dict = None,
     ) -> np.ndarray:
-        """Prepare features from raw data."""
+        """Prepare features from raw data with multi-dataset clinical covariates."""
         if insulin_df is None:
             insulin_df = pd.DataFrame()
         if meals_df is None:
@@ -162,9 +163,30 @@ class GlucoseInferenceService:
             activity_features.reset_index(drop=True),
         ], axis=1)
 
-        # Remove duplicates and non-numeric columns
+        # Remove duplicates
         all_features = all_features.loc[:, ~all_features.columns.duplicated()]
-        # trend_rate was not in training CSV data — drop it to match model's 43-feature input
+
+        # Inject static clinical profiles (EHR Fusion)
+        if patient_profile:
+            age = float(patient_profile.get("age", 35.0))
+            weight = float(patient_profile.get("weight_kg", 75.0))
+            height = float(patient_profile.get("height_cm", 170.0))
+            bmi = weight / ((height / 100.0) ** 2) if height > 0 else 28.0
+            hba1c = float(patient_profile.get("hba1c_baseline", 6.5))
+            num_meds = float(patient_profile.get("num_medications", 16.0))
+        else:
+            # Fallback clinical standards
+            age = 35.0
+            bmi = 28.0
+            hba1c = 6.5
+            num_meds = 16.0
+
+        all_features["static_age"] = age
+        all_features["static_bmi"] = bmi
+        all_features["static_hba1c"] = hba1c
+        all_features["static_num_meds"] = num_meds
+
+        # trend_rate was not in training CSV data — drop it to match model's input size
         cols_to_drop = ['time', 'trend', 'patient_id', 'trend_rate']
         all_features = all_features.drop(
             columns=[c for c in cols_to_drop if c in all_features.columns],
@@ -189,6 +211,10 @@ class GlucoseInferenceService:
         # Take last sequence
         feature_cols = [c for c in all_features.columns if c != 'glucose_mg_dl']
         X = all_features[feature_cols].values[-seq_len:]
+
+        # Apply feature engine scaler!
+        if self.feature_engine and self.feature_engine._is_fitted:
+            X = self.feature_engine.scaler.transform(X)
 
         return X.astype(np.float32)
 

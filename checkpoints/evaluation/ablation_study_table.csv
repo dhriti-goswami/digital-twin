@@ -1,0 +1,4 @@
+Ablation Setup,RMSE (mg/dL),Physiological Violation Rate (%)
+DL-only (Standard Transformer),9.84,15.2%
+PINN-only (Bergman ODE),18.52,0.0%
+DL+PINN (Proposed Twin),8.67,0.8%

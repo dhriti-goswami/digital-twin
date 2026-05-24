@@ -98,19 +98,19 @@ class GlucoseExplainer:
         # Create model wrapper for SHAP
         self.model_fn = self._create_model_function()
 
-        # Initialize SHAP explainer with background data
+        # Initialize SHAP explainer background data on the last step (for speed & Transformer compatibility)
         if background_data is not None:
-            # Use a subset for efficiency
-            if len(background_data) > n_background_samples:
-                indices = np.random.choice(len(background_data), n_background_samples, replace=False)
-                background_data = background_data[indices]
+            if background_data.ndim == 3:
+                # Take last step features for model-agnostic KernelExplainer
+                self.background_last = background_data[:, -1, :]
+            else:
+                self.background_last = background_data
 
-            self.explainer = shap.DeepExplainer(
-                self.model,
-                torch.FloatTensor(background_data).to(self.device)
-            )
+            if len(self.background_last) > n_background_samples:
+                indices = np.random.choice(len(self.background_last), n_background_samples, replace=False)
+                self.background_last = self.background_last[indices]
         else:
-            self.explainer = None
+            self.background_last = None
 
         logger.info(f"GlucoseExplainer initialized with {len(feature_names)} features")
 
@@ -131,7 +131,7 @@ class GlucoseExplainer:
         top_k: int = 5,
     ) -> dict:
         """
-        Generate explanation for a single prediction.
+        Generate explanation for a single prediction using robust model-agnostic KernelExplainer.
 
         Args:
             input_sequence: Input features (seq_len, n_features) or (1, seq_len, n_features)
@@ -152,24 +152,34 @@ class GlucoseExplainer:
             prediction = self.model(x).cpu().numpy()[0, horizon_index]
 
         # Calculate SHAP values
-        if self.explainer is not None:
-            x_tensor = torch.FloatTensor(input_sequence).to(self.device)
-            shap_values = self.explainer.shap_values(x_tensor)
+        if self.background_last is not None:
+            # We explain the last step's features since they govern the predictions most directly
+            X_last = input_sequence[:, -1, :]  # Shape (1, n_features)
 
-            # Handle different output formats
+            # Model prediction function wrapper targeting only this horizon and sequence length
+            def predict_wrapper(X_np):
+                with torch.no_grad():
+                    # Replicate perturbations over sequence length to match Transformer expected inputs
+                    X_seq = np.tile(X_np[:, np.newaxis, :], (1, input_sequence.shape[1], 1))
+                    X_tensor = torch.FloatTensor(X_seq).to(self.device)
+                    preds = self.model(X_tensor).cpu().numpy()
+                    return preds[:, horizon_index]  # Shape (n_evaluations,)
+
+            # Use KernelExplainer which is completely compatible with Transformers and LSTMs!
+            explainer = shap.KernelExplainer(predict_wrapper, self.background_last[:30]) # Use subset of background for speed
+            shap_values = explainer.shap_values(X_last, nsamples=50)
+
+            # Handle multi-output / single-output formats
             if isinstance(shap_values, list):
-                shap_values = shap_values[horizon_index]
-
-            # Average SHAP values over the sequence dimension
-            # Shape: (1, seq_len, n_features) -> (n_features,)
-            feature_shap = np.abs(shap_values[0]).mean(axis=0)
+                shap_values = shap_values[0]
+            feature_shap = np.abs(shap_values[0])
         else:
-            # Fallback: use gradient-based importance
-            feature_shap = self._gradient_importance(input_sequence, horizon_index)
+            # Fallback: use high-fidelity Integrated Gradients
+            feature_shap = self._integrated_gradients(input_sequence, horizon_index)
 
         # Get top features
         top_indices = np.argsort(feature_shap)[-top_k:][::-1]
-        top_features = [(self.feature_names[i], feature_shap[i]) for i in top_indices]
+        top_features = [(self.feature_names[i], float(feature_shap[i])) for i in top_indices]
 
         # Generate natural language explanation
         explanation = self._generate_explanation(
@@ -196,6 +206,34 @@ class GlucoseExplainer:
             "visualization_data": viz_data,
             "all_shap_values": feature_shap.tolist(),
         }
+
+    def _integrated_gradients(self, input_sequence: np.ndarray, horizon_index: int, steps: int = 20) -> np.ndarray:
+        """Calculate Integrated Gradients as a fast, high-fidelity fallback for sequence models."""
+        self.model.eval()
+        x = torch.FloatTensor(input_sequence).to(self.device)
+        baseline = torch.zeros_like(x)  # Zero baseline
+
+        # Accumulate gradients along the path from baseline to input
+        grads_list = []
+        for i in range(steps + 1):
+            alpha = i / steps
+            interpolated = baseline + alpha * (x - baseline)
+            interpolated.requires_grad = True
+            
+            output = self.model(interpolated)[0, horizon_index]
+            self.model.zero_grad()
+            output.backward()
+            
+            grads_list.append(interpolated.grad.cpu().numpy()[0])
+
+        # Average gradients
+        avg_grads = np.mean(grads_list, axis=0)
+        # Integrated Gradients = (input - baseline) * avg_grads
+        ig = (input_sequence[0] - baseline.cpu().numpy()[0]) * avg_grads
+        # Average over sequence dimension
+        importance = np.abs(ig).mean(axis=0)
+        
+        return importance
 
     def _gradient_importance(self, input_sequence: np.ndarray, horizon_index: int) -> np.ndarray:
         """Calculate gradient-based feature importance as fallback."""

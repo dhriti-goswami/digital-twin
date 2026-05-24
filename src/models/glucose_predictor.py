@@ -213,25 +213,27 @@ class PhysicsInformedLoss(nn.Module):
     to ensure predictions are biologically plausible.
 
     The Bergman Minimal Model describes glucose-insulin dynamics:
-    dG/dt = -p1*(G - Gb) - X*G + D(t)/V
+    dG/dt = -p1*(G - Gb) - X*G + Ra(t)
     dX/dt = -p2*X + p3*(I - Ib)
 
     Where:
     - G: glucose concentration
-    - X: insulin action
-    - I: insulin concentration
-    - Gb, Ib: basal values
-    - p1, p2, p3: patient-specific parameters
-    - D(t): glucose input from meals
+    - X: remote insulin action
+    - I: plasma insulin concentration (approximated via rapid IOB)
+    - Gb: basal glucose concentration (target equilibrium)
+    - p1: glucose effectiveness (min^-1)
+    - p2: remote insulin action decay rate (min^-1)
+    - p3: insulin sensitivity (min^-1 / (uU/mL))
+    - Ra(t): glucose appearance rate from meal carbohydrates
     """
 
     def __init__(
         self,
-        p1: float = 0.028,  # Glucose effectiveness (min^-1)
-        p2: float = 0.025,  # Rate of insulin action decay (min^-1)
-        p3: float = 5.0e-5,  # Insulin sensitivity
-        gb: float = 110.0,  # Basal glucose (mg/dL)
-        dt: float = 5.0,  # Time step (minutes)
+        p1: float = 0.028,      # Glucose effectiveness (min^-1)
+        p2: float = 0.025,      # Rate of insulin action decay (min^-1)
+        p3: float = 5.0e-5,     # Insulin sensitivity
+        gb: float = 110.0,      # Basal glucose (mg/dL)
+        dt: float = 30.0,       # Step size between prediction horizons (minutes)
         lambda_physics: float = 0.1,  # Weight of physics loss
     ):
         super().__init__()
@@ -244,58 +246,72 @@ class PhysicsInformedLoss(nn.Module):
 
     def forward(
         self,
-        pred: torch.Tensor,
-        target: torch.Tensor,
-        glucose_history: Optional[torch.Tensor] = None,
+        pred: torch.Tensor,                  # Predicted glucose (batch, 4) at 30, 60, 90, 120 mins
+        target: torch.Tensor,                # Target glucose (batch, 4)
+        glucose_history: torch.Tensor,       # Historical glucose (batch, seq_len)
+        iob: torch.Tensor,                   # Rapid insulin on board at t=0 (batch,)
+        cob: torch.Tensor,                   # Carbs on board at t=0 (batch,)
     ) -> tuple[torch.Tensor, dict]:
         """
-        Compute combined MSE + Physics loss.
-
-        Args:
-            pred: Predicted glucose values (batch, num_horizons)
-            target: Target glucose values (batch, num_horizons)
-            glucose_history: Optional historical glucose for computing physics constraints
-
-        Returns:
-            total_loss: Combined loss
-            loss_components: Dictionary with individual loss components
+        Compute combined MSE + Physics loss using Bergman Minimal Model ODE residuals.
         """
         # Standard prediction loss (MSE)
         mse_loss = F.mse_loss(pred, target)
 
-        # Physics-based constraints
+        # Concatenate current glucose G(t=0) with predictions to get full trajectory G(t) at [0, 30, 60, 90, 120] min
+        g0 = glucose_history[:, -1].unsqueeze(1)  # Shape (batch, 1)
+        g_traj = torch.cat([g0, pred], dim=1)     # Shape (batch, 5)
+
         physics_loss = torch.tensor(0.0, device=pred.device)
+        dt = self.dt
 
-        if glucose_history is not None and glucose_history.size(1) >= 2:
-            # Rate of change constraint
-            # The glucose shouldn't change too rapidly (physiological limit)
-            # Max rate ~ 4 mg/dL/min for rapid changes
+        # Check that we have valid arrays
+        batch_size = pred.size(0)
+        iob = iob.view(batch_size)
+        cob = cob.view(batch_size)
 
-            # Compute predicted rate of change
-            if pred.size(1) >= 2:
-                pred_roc = (pred[:, 1:] - pred[:, :-1]) / self.dt
-                max_physiological_roc = 4.0  # mg/dL/min
+        # Compute ODE residuals for each of the 4 prediction horizons: 30, 60, 90, 120 min
+        for k in range(1, 5):
+            tk = k * dt
 
-                # Penalize rates exceeding physiological limits
-                roc_violation = F.relu(pred_roc.abs() - max_physiological_roc)
-                physics_loss += roc_violation.mean()
+            # Extract glucose at current step and previous step
+            g_k = g_traj[:, k]
+            g_prev = g_traj[:, k-1]
 
-            # Glucose should trend toward basal when no inputs
-            # This is a soft constraint based on glucose effectiveness
-            historical_roc = (glucose_history[:, -1] - glucose_history[:, -2]) / self.dt
+            # 1. Estimate dG/dt using finite differences (mg/dL per minute)
+            dG_dt = (g_k - g_prev) / dt
 
-            # If glucose is high and still rising rapidly, penalize
-            high_glucose_mask = glucose_history[:, -1] > 180
-            still_rising = (historical_roc > 1.0) & high_glucose_mask
-            physics_loss += 0.1 * still_rising.float().mean()
+            # 2. Model rapid-acting IOB decay curve to estimate active insulin action X(t_k)
+            # Rapid insulin durations typically ~4 hours (240 mins)
+            # Fraction remaining modeled exponentially: (1 - t/240)^1.5
+            iob_fraction = torch.clamp(1.0 - torch.tensor(tk / 240.0, device=pred.device), min=0.0) ** 1.5
+            iob_k = iob * iob_fraction
 
-            # If glucose is low and still falling rapidly, penalize
-            low_glucose_mask = glucose_history[:, -1] < 80
-            still_falling = (historical_roc < -1.0) & low_glucose_mask
-            physics_loss += 0.1 * still_falling.float().mean()
+            # Bergman: X(t) represents remote compartment insulin action.
+            # Active insulin action is proportional to the active insulin on board.
+            x_k = self.p3 * iob_k
 
-        # Bounds constraint: glucose should stay within physiological range
-        # Soft penalty for predictions outside 40-400 mg/dL
+            # 3. Model meal carbohydrate absorption to estimate rate of glucose appearance Ra(t_k)
+            # Meal absorption duration typically ~3 hours (180 mins)
+            # Fraction remaining modeled exponentially: (1 - t/180)^1.2
+            cob_fraction_prev = torch.clamp(1.0 - torch.tensor((tk - dt) / 180.0, device=pred.device), min=0.0) ** 1.2
+            cob_fraction_k = torch.clamp(1.0 - torch.tensor(tk / 180.0, device=pred.device), min=0.0) ** 1.2
+
+            cob_prev = cob * cob_fraction_prev
+            cob_k = cob * cob_fraction_k
+
+            # Ra(t) is the rate of appearance from meal absorption (mg/dL per minute)
+            # modeled as the rate of carb decay multiplied by systemic absorption scaling (~0.15 mg/dL/g/min)
+            ra_k = ((cob_prev - cob_k) / dt) * 0.15
+
+            # 4. Compute Bergman minimal model ODE residual:
+            # dG/dt - [ -p1*(G_k - Gb) - X_k*G_k + Ra_k ] = 0
+            pinn_residual = dG_dt - (-self.p1 * (g_k - self.gb) - x_k * g_k + ra_k)
+
+            # Accumulate mean square residuals
+            physics_loss += (pinn_residual ** 2).mean()
+
+        # Bounds constraint: glucose should stay within physiological range [40, 400] mg/dL
         lower_violation = F.relu(40.0 - pred)
         upper_violation = F.relu(pred - 400.0)
         bounds_loss = (lower_violation.mean() + upper_violation.mean()) * 0.01
@@ -368,10 +384,12 @@ class GlucosePredictor(nn.Module):
         pred: torch.Tensor,
         target: torch.Tensor,
         glucose_history: Optional[torch.Tensor] = None,
+        iob: Optional[torch.Tensor] = None,
+        cob: Optional[torch.Tensor] = None,
     ) -> tuple[torch.Tensor, dict]:
         """Compute loss with optional physics constraints."""
-        if self.use_pinn and self.pinn_loss is not None:
-            return self.pinn_loss(pred, target, glucose_history)
+        if self.use_pinn and self.pinn_loss is not None and glucose_history is not None and iob is not None and cob is not None:
+            return self.pinn_loss(pred, target, glucose_history, iob, cob)
         else:
             loss = F.mse_loss(pred, target)
             return loss, {"mse_loss": loss.item(), "total_loss": loss.item()}

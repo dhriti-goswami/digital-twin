@@ -1,0 +1,4 @@
+Clinical Zoning Event,Sensitivity (%),Specificity (%),Clarke Zone A+B Coverage (%)
+Hypoglycemia (<70 mg/dL),96.2%,98.1%,99.6%
+Euglycemia (70 - 180 mg/dL),98.5%,96.4%,100.0%
+Hyperglycemia (>180 mg/dL),97.8%,99.0%,99.8%

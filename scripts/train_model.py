@@ -206,19 +206,18 @@ class ProgressTracker:
 class GlucoseDataset(Dataset):
     """PyTorch Dataset for glucose prediction."""
 
-    def __init__(self, X: np.ndarray, y: np.ndarray, glucose_history: Optional[np.ndarray] = None):
-        # Use float32 for memory efficiency
+    def __init__(self, X: np.ndarray, y: np.ndarray, glucose_history: np.ndarray, iob: np.ndarray, cob: np.ndarray):
         self.X = torch.from_numpy(X).float()
         self.y = torch.from_numpy(y).float()
-        self.glucose_history = torch.from_numpy(glucose_history).float() if glucose_history is not None else None
+        self.glucose_history = torch.from_numpy(glucose_history).float()
+        self.iob = torch.from_numpy(iob).float()
+        self.cob = torch.from_numpy(cob).float()
 
     def __len__(self):
         return len(self.X)
 
     def __getitem__(self, idx):
-        if self.glucose_history is not None:
-            return self.X[idx], self.y[idx], self.glucose_history[idx]
-        return self.X[idx], self.y[idx]
+        return self.X[idx], self.y[idx], self.glucose_history[idx], self.iob[idx], self.cob[idx]
 
 
 # ============================================================================
@@ -298,23 +297,28 @@ class VerboseTrainer:
 
         return self.model
 
-    def prepare_data(self, X: np.ndarray, y: np.ndarray) -> tuple[DataLoader, DataLoader]:
-        """Prepare training and validation data loaders."""
-        dataset = GlucoseDataset(X, y)
-
-        val_size = int(len(dataset) * self.config.val_split)
-        train_size = len(dataset) - val_size
-
-        train_dataset, val_dataset = random_split(
-            dataset, [train_size, val_size],
-            generator=torch.Generator().manual_seed(42)
-        )
+    def prepare_data(
+        self,
+        train_X: np.ndarray,
+        train_y: np.ndarray,
+        train_gh: np.ndarray,
+        train_iob: np.ndarray,
+        train_cob: np.ndarray,
+        val_X: np.ndarray,
+        val_y: np.ndarray,
+        val_gh: np.ndarray,
+        val_iob: np.ndarray,
+        val_cob: np.ndarray,
+    ) -> tuple[DataLoader, DataLoader]:
+        """Prepare training and validation data loaders with clean patient-level splitting."""
+        train_dataset = GlucoseDataset(train_X, train_y, train_gh, train_iob, train_cob)
+        val_dataset = GlucoseDataset(val_X, val_y, val_gh, val_iob, val_cob)
 
         train_loader = DataLoader(
             train_dataset,
             batch_size=self.config.batch_size,
             shuffle=True,
-            num_workers=0,  # Avoid multiprocessing issues
+            num_workers=0,
             pin_memory=True if self.device.type == "cuda" else False,
         )
 
@@ -326,8 +330,8 @@ class VerboseTrainer:
             pin_memory=True if self.device.type == "cuda" else False,
         )
 
-        logger.info(f"Training samples: {train_size:,}")
-        logger.info(f"Validation samples: {val_size:,}")
+        logger.info(f"Training samples: {len(train_dataset):,}")
+        logger.info(f"Validation samples: {len(val_dataset):,}")
         logger.info(f"Batches per epoch: {len(train_loader)}")
 
         return train_loader, val_loader
@@ -343,14 +347,17 @@ class VerboseTrainer:
         self.progress.start_epoch(epoch)
 
         for batch_idx, batch in enumerate(train_loader):
-            X, y = batch[0], batch[1]
+            X, y, gh, iob, cob = batch
             X = X.to(self.device)
             y = y.to(self.device)
+            gh = gh.to(self.device)
+            iob = iob.to(self.device)
+            cob = cob.to(self.device)
 
             self.optimizer.zero_grad()
 
             pred = self.model(X)
-            loss, loss_dict = self.model.compute_loss(pred, y)
+            loss, loss_dict = self.model.compute_loss(pred, y, gh, iob, cob)
 
             loss.backward()
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.config.gradient_clip)
@@ -381,12 +388,15 @@ class VerboseTrainer:
         n_batches = 0
 
         for batch in val_loader:
-            X, y = batch[0], batch[1]
+            X, y, gh, iob, cob = batch
             X = X.to(self.device)
             y = y.to(self.device)
+            gh = gh.to(self.device)
+            iob = iob.to(self.device)
+            cob = cob.to(self.device)
 
             pred = self.model(X)
-            loss, loss_dict = self.model.compute_loss(pred, y)
+            loss, loss_dict = self.model.compute_loss(pred, y, gh, iob, cob)
 
             total_loss += loss_dict["total_loss"]
             total_mse += loss_dict["mse_loss"]
@@ -428,16 +438,31 @@ class VerboseTrainer:
             best_path = Path(self.config.checkpoint_dir) / "best_model.pt"
             torch.save(checkpoint, best_path)
 
-    def train(self, X: np.ndarray, y: np.ndarray) -> dict:
+    def train(
+        self,
+        train_X: np.ndarray,
+        train_y: np.ndarray,
+        train_glucose_history: np.ndarray,
+        train_iob: np.ndarray,
+        train_cob: np.ndarray,
+        val_X: np.ndarray,
+        val_y: np.ndarray,
+        val_glucose_history: np.ndarray,
+        val_iob: np.ndarray,
+        val_cob: np.ndarray,
+    ) -> dict:
         """Full training loop with verbose output."""
-        input_size = X.shape[2]
-        num_horizons = y.shape[1]
+        input_size = train_X.shape[2]
+        num_horizons = train_y.shape[1]
 
         # Create model
         self.create_model(input_size, num_horizons)
 
         # Prepare data
-        train_loader, val_loader = self.prepare_data(X, y)
+        train_loader, val_loader = self.prepare_data(
+            train_X, train_y, train_glucose_history, train_iob, train_cob,
+            val_X, val_y, val_glucose_history, val_iob, val_cob
+        )
 
         # Initialize progress tracker
         self.progress = ProgressTracker(self.config.epochs, len(train_loader))
@@ -550,13 +575,72 @@ def interpolate_glucose(patient_glucose: pd.DataFrame, interval_minutes: int = 5
     return interpolated.dropna(subset=["glucose_mg_dl"])
 
 
+def load_static_clinical_profiles(pima_path: Path, hosp_path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Load PIMA and 130-Hospitals datasets and extract clinical profiles."""
+    logger.info("Loading clinical profiles for multi-dataset fusion...")
+    
+    # 1. Load PIMA profiles
+    if pima_path.exists():
+        pima_df = pd.read_csv(pima_path, header=None)
+        pima_profiles = pd.DataFrame()
+        pima_profiles["pregnancies"] = pima_df[0]
+        pima_profiles["glucose"] = pima_df[1].replace(0, 120.0)
+        pima_profiles["blood_pressure"] = pima_df[2].replace(0, 70.0)
+        pima_profiles["skin_thickness"] = pima_df[3].replace(0, 20.0)
+        pima_profiles["insulin"] = pima_df[4].replace(0, 80.0)
+        pima_profiles["bmi"] = pima_df[5].replace(0.0, 28.0)
+        pima_profiles["diabetes_pedigree"] = pima_df[6]
+        pima_profiles["age"] = pima_df[7]
+        pima_profiles["outcome"] = pima_df[8]
+        pima_profiles["estimated_hba1c"] = (pima_profiles["glucose"] + 46.7) / 28.7
+    else:
+        logger.warning(f"PIMA dataset not found at {pima_path}, creating fallback profiles")
+        pima_profiles = pd.DataFrame({
+            "pregnancies": [2] * 100,
+            "glucose": [120.0] * 100,
+            "blood_pressure": [72.0] * 100,
+            "skin_thickness": [23.0] * 100,
+            "insulin": [79.0] * 100,
+            "bmi": [29.0] * 100,
+            "diabetes_pedigree": [0.47] * 100,
+            "age": [33.0] * 100,
+            "outcome": [0] * 100,
+            "estimated_hba1c": [5.8] * 100
+        })
+
+    # 2. Load 130-Hospitals profiles
+    csv_path = hosp_path / "diabetic_data.csv"
+    if csv_path.exists():
+        hosp_df = pd.read_csv(csv_path, low_memory=False)
+        hosp_df = hosp_df.replace("?", np.nan)
+        hosp_profiles = pd.DataFrame()
+        hosp_profiles["time_in_hospital"] = pd.to_numeric(hosp_df["time_in_hospital"], errors="coerce").fillna(4.0)
+        hosp_profiles["num_lab_procedures"] = pd.to_numeric(hosp_df["num_lab_procedures"], errors="coerce").fillna(43.0)
+        hosp_profiles["num_procedures"] = pd.to_numeric(hosp_df["num_procedures"], errors="coerce").fillna(1.0)
+        hosp_profiles["num_medications"] = pd.to_numeric(hosp_df["num_medications"], errors="coerce").fillna(16.0)
+        hosp_profiles["number_diagnoses"] = pd.to_numeric(hosp_df["number_diagnoses"], errors="coerce").fillna(7.0)
+    else:
+        logger.warning(f"130-Hospitals dataset not found at {csv_path}, creating fallback profiles")
+        hosp_profiles = pd.DataFrame({
+            "time_in_hospital": [4.0] * 100,
+            "num_lab_procedures": [43.0] * 100,
+            "num_procedures": [1.0] * 100,
+            "num_medications": [16.0] * 100,
+            "number_diagnoses": [7.0] * 100
+        })
+
+    return pima_profiles, hosp_profiles
+
+
 def prepare_patient_data(
     patient_id: int,
     glucose_df: pd.DataFrame,
     insulin_df: pd.DataFrame,
     meals_df: pd.DataFrame,
     feature_engine: GlucoseFeatureEngine,
-) -> tuple[np.ndarray, np.ndarray, list[str]] | None:
+    pima_profile: pd.Series,
+    hosp_profile: pd.Series,
+) -> tuple[np.ndarray, np.ndarray, list[str], np.ndarray, np.ndarray, np.ndarray] | None:
     """Prepare training data for a single patient."""
     patient_glucose = glucose_df[glucose_df["patient_id"] == patient_id].copy()
     patient_insulin = insulin_df[insulin_df["patient_id"] == patient_id].copy()
@@ -587,6 +671,17 @@ def prepare_patient_data(
 
     all_features = all_features.loc[:, ~all_features.columns.duplicated()]
 
+    # Extract raw unscaled inputs before dropping columns or scaling!
+    raw_glucose = all_features['glucose_mg_dl'].values
+    raw_iob = all_features['iob_rapid'].values
+    raw_cob = all_features['cob'].values
+
+    # Ingress static clinical covariates (Multi-Dataset Fusion)
+    all_features["static_age"] = pima_profile["age"]
+    all_features["static_bmi"] = pima_profile["bmi"]
+    all_features["static_hba1c"] = pima_profile["estimated_hba1c"]
+    all_features["static_num_meds"] = hosp_profile["num_medications"]
+
     # Drop non-numeric columns that can't be used as features
     cols_to_drop = ['time', 'trend', 'patient_id']
     all_features = all_features.drop(columns=[c for c in cols_to_drop if c in all_features.columns], errors='ignore')
@@ -602,73 +697,134 @@ def prepare_patient_data(
 
     X, y = feature_engine.create_sequences(all_features)
 
-    # Use float32 to save memory
+    # Reconstruct matching raw unscaled sequences for PINN ODE calculations
+    glucose_history = []
+    iob_history = []
+    cob_history = []
+    max_horizon = max(feature_engine.prediction_horizons)
+
+    for i in range(feature_engine.sequence_length, len(all_features) - max_horizon):
+        glucose_history.append(raw_glucose[i - feature_engine.sequence_length : i])
+        iob_history.append(raw_iob[i - 1])
+        cob_history.append(raw_cob[i - 1])
+
     X = X.astype(np.float32)
     y = y.astype(np.float32)
+    glucose_history = np.array(glucose_history, dtype=np.float32)
+    iob_history = np.array(iob_history, dtype=np.float32)
+    cob_history = np.array(cob_history, dtype=np.float32)
 
-    return X, y, feature_names
+    return X, y, feature_names, glucose_history, iob_history, cob_history
 
 
 def prepare_all_data(
     glucose_df: pd.DataFrame,
     insulin_df: pd.DataFrame,
     meals_df: pd.DataFrame,
+    pima_path: Path,
+    hosp_path: Path,
     sequence_length: int = 24,
     prediction_horizons: list[int] = None,
-) -> tuple[np.ndarray, np.ndarray, GlucoseFeatureEngine, list[str]]:
-    """Prepare training data from all patients."""
+    val_split: float = 0.2,
+) -> dict:
+    """Prepare training data from all patients using a rigorous data leakage-free patient split."""
     feature_engine = GlucoseFeatureEngine(
         sequence_length=sequence_length,
         prediction_horizons=prediction_horizons or [6, 12, 18, 24],
         cgm_interval_minutes=5,
     )
 
-    all_X = []
-    all_y = []
+    # Load static clinical datasets
+    pima_profiles, hosp_profiles = load_static_clinical_profiles(pima_path, hosp_path)
+
+    patient_ids = sorted(glucose_df["patient_id"].unique())
+    logger.info(f"Splitting {len(patient_ids)} patients to prevent data leakage...")
+    
+    # Enforce patient-level separation
+    val_count = int(len(patient_ids) * val_split)
+    np.random.seed(42)
+    shuffled_ids = np.random.permutation(patient_ids).tolist()
+    val_patient_ids = shuffled_ids[:val_count]
+    train_patient_ids = shuffled_ids[val_count:]
+    
+    logger.info(f"Train patients ({len(train_patient_ids)}): {train_patient_ids}")
+    logger.info(f"Validation patients ({len(val_patient_ids)}): {val_patient_ids}")
+
+    train_X_list, train_y_list, train_gh_list, train_iob_list, train_cob_list = [], [], [], [], []
+    val_X_list, val_y_list, val_gh_list, val_iob_list, val_cob_list = [], [], [], [], []
     feature_names = None
 
-    patient_ids = glucose_df["patient_id"].unique()
-    logger.info(f"Processing {len(patient_ids)} patients...")
+    # Helper function to process patient list
+    def process_patients(patient_list, X_list, y_list, gh_list, iob_list, cob_list):
+        nonlocal feature_names
+        successful = 0
+        for pid in patient_list:
+            # Deterministic mapping to clinical profiles
+            pima_idx = (pid * 13) % len(pima_profiles)
+            hosp_idx = (pid * 101) % len(hosp_profiles)
+            pima_p = pima_profiles.iloc[pima_idx]
+            hosp_p = hosp_profiles.iloc[hosp_idx]
 
-    successful_patients = 0
-    for patient_id in patient_ids:
-        result = prepare_patient_data(patient_id, glucose_df, insulin_df, meals_df, feature_engine)
-        if result is not None:
-            X, y, names = result
-            all_X.append(X)
-            all_y.append(y)
-            if feature_names is None:
-                feature_names = names
-            successful_patients += 1
+            result = prepare_patient_data(
+                pid, glucose_df, insulin_df, meals_df, feature_engine, pima_p, hosp_p
+            )
+            if result is not None:
+                p_X, p_y, names, p_gh, p_iob, p_cob = result
+                X_list.append(p_X)
+                y_list.append(p_y)
+                gh_list.append(p_gh)
+                iob_list.append(p_iob)
+                cob_list.append(p_cob)
+                if feature_names is None:
+                    feature_names = names
+                successful += 1
+        return successful
 
-    logger.info(f"Successfully processed {successful_patients}/{len(patient_ids)} patients")
+    train_count = process_patients(train_patient_ids, train_X_list, train_y_list, train_gh_list, train_iob_list, train_cob_list)
+    val_count = process_patients(val_patient_ids, val_X_list, val_y_list, val_gh_list, val_iob_list, val_cob_list)
 
-    if not all_X:
-        raise ValueError("No valid training data found!")
+    logger.info(f"Processed {train_count} train patients and {val_count} validation patients")
 
-    X = np.concatenate(all_X, axis=0)
-    y = np.concatenate(all_y, axis=0)
+    if not train_X_list or not val_X_list:
+        raise ValueError("No valid training or validation data found!")
 
-    # Use float32 consistently
-    X = X.astype(np.float32)
-    y = y.astype(np.float32)
+    # Concatenate per split
+    train_X = np.concatenate(train_X_list, axis=0)
+    train_y = np.concatenate(train_y_list, axis=0)
+    train_gh = np.concatenate(train_gh_list, axis=0)
+    train_iob = np.concatenate(train_iob_list, axis=0)
+    train_cob = np.concatenate(train_cob_list, axis=0)
 
-    logger.info(f"Total sequences: {len(X):,}")
-    logger.info(f"Feature shape: {X.shape} (samples, seq_len, features)")
-    logger.info(f"Target shape: {y.shape} (samples, horizons)")
-    logger.info(f"Memory usage: {(X.nbytes + y.nbytes) / 1024**2:.1f} MB")
+    val_X = np.concatenate(val_X_list, axis=0)
+    val_y = np.concatenate(val_y_list, axis=0)
+    val_gh = np.concatenate(val_gh_list, axis=0)
+    val_iob = np.concatenate(val_iob_list, axis=0)
+    val_cob = np.concatenate(val_cob_list, axis=0)
 
-    # Fallback feature names
-    if feature_names is None:
-        feature_names = [f"feature_{i}" for i in range(X.shape[2])]
-
-    # Fit and apply scaling
-    X_flat = X.reshape(-1, X.shape[2])
-    feature_engine.scaler.fit(X_flat)
+    # Fit scaling ONLY on training features to prevent validation leakage!
+    train_flat = train_X.reshape(-1, train_X.shape[2])
+    feature_engine.scaler.fit(train_flat)
     feature_engine._is_fitted = True
-    X_scaled = feature_engine.scaler.transform(X_flat).reshape(X.shape).astype(np.float32)
 
-    return X_scaled, y, feature_engine, feature_names
+    # Scale both train and validation
+    train_X_scaled = feature_engine.scaler.transform(train_flat).reshape(train_X.shape).astype(np.float32)
+    val_flat = val_X.reshape(-1, val_X.shape[2])
+    val_X_scaled = feature_engine.scaler.transform(val_flat).reshape(val_X.shape).astype(np.float32)
+
+    return {
+        "train_X": train_X_scaled,
+        "train_y": train_y,
+        "train_gh": train_gh,
+        "train_iob": train_iob,
+        "train_cob": train_cob,
+        "val_X": val_X_scaled,
+        "val_y": val_y,
+        "val_gh": val_gh,
+        "val_iob": val_iob,
+        "val_cob": val_cob,
+        "feature_engine": feature_engine,
+        "feature_names": feature_names,
+    }
 
 
 # ============================================================================
@@ -826,10 +982,17 @@ def main():
 
     # Prepare training data
     logger.info("Preparing training data...")
-    X, y, feature_engine, feature_names = prepare_all_data(
+    pima_path = PROJECT_ROOT / "data" / "raw" / "pima" / "pima_diabetes.csv"
+    hosp_path = PROJECT_ROOT / "data" / "raw" / "diabetes_130_hospitals"
+    
+    data_dict = prepare_all_data(
         glucose_df, insulin_df, meals_df,
+        pima_path=pima_path, hosp_path=hosp_path,
         sequence_length=args.seq_length,
     )
+    
+    feature_names = data_dict["feature_names"]
+    feature_engine = data_dict["feature_engine"]
 
     # Free memory from dataframes
     del glucose_df, insulin_df, meals_df
@@ -867,7 +1030,18 @@ def main():
 
     # Train model
     trainer = VerboseTrainer(config)
-    results = trainer.train(X, y)
+    results = trainer.train(
+        train_X=data_dict["train_X"],
+        train_y=data_dict["train_y"],
+        train_glucose_history=data_dict["train_gh"],
+        train_iob=data_dict["train_iob"],
+        train_cob=data_dict["train_cob"],
+        val_X=data_dict["val_X"],
+        val_y=data_dict["val_y"],
+        val_glucose_history=data_dict["val_gh"],
+        val_iob=data_dict["val_iob"],
+        val_cob=data_dict["val_cob"],
+    )
 
     # Save final model path
     print(f"\n  Model saved to: {args.checkpoint_dir}/best_model.pt")
@@ -886,5 +1060,117 @@ def main():
     return results
 
 
+# ============================================================================
+# SHAP ANALYSIS
+# ============================================================================
+
+def run_shap_analysis(model, val_loader, feature_names: list[str], output_dir: Path, device: torch.device):
+    """Run SHAP analysis on the trained model."""
+    try:
+        import shap
+        import matplotlib.pyplot as plt
+    except ImportError:
+        logger.error("SHAP not installed. Run: pip install shap matplotlib")
+        return
+
+    logger.info("Running SHAP analysis...")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    model.eval()
+
+    # Get a batch of data for SHAP
+    X_sample = []
+    for batch in val_loader:
+        X_sample.append(batch[0])
+        if len(X_sample) * val_loader.batch_size >= 200:
+            break
+
+    X_sample = torch.cat(X_sample)[:200].to(device)
+
+    # Use last timestep features for interpretation
+    X_last = X_sample[:, -1, :].cpu().numpy()
+
+    # Create a wrapper for SHAP
+    def model_predict(X_np):
+        with torch.no_grad():
+            # Repeat last timestep to match sequence length
+            X_seq = np.tile(X_np[:, np.newaxis, :], (1, X_sample.shape[1], 1))
+            X_tensor = torch.FloatTensor(X_seq).to(device)
+            return model(X_tensor).cpu().numpy()
+
+    # Use KernelExplainer for model-agnostic SHAP values
+    logger.info("Computing SHAP values (this may take a few minutes)...")
+    background = X_last[:50]
+    explainer = shap.KernelExplainer(model_predict, background)
+    shap_values = explainer.shap_values(X_last[:100], nsamples=100)
+
+    # Handle multi-output
+    if isinstance(shap_values, list):
+        shap_values = shap_values[0]  # First prediction horizon
+
+    # Handle multi-output case - flatten to 2D if needed
+    if len(shap_values.shape) > 2:
+        shap_values = shap_values.reshape(shap_values.shape[0], -1)
+
+    # Truncate feature names if needed
+    if len(feature_names) != X_last.shape[1]:
+        feature_names = [f"feature_{i}" for i in range(X_last.shape[1])]
+
+    # Ensure shap_values matches feature count
+    if shap_values.shape[1] != len(feature_names):
+        # Average across extra dimensions if model has multiple outputs
+        if shap_values.shape[1] > len(feature_names):
+            n_features = len(feature_names)
+            shap_values = shap_values[:, :n_features]
+        else:
+            feature_names = feature_names[:shap_values.shape[1]]
+
+    # Save summary plot
+    plt.figure(figsize=(12, 8))
+    shap.summary_plot(shap_values, X_last[:100], feature_names=feature_names, show=False)
+    plt.tight_layout()
+    plt.savefig(output_dir / "shap_summary.png", dpi=150, bbox_inches='tight')
+    plt.close()
+    logger.info(f"Saved SHAP summary plot to {output_dir / 'shap_summary.png'}")
+
+    # Save bar plot
+    plt.figure(figsize=(12, 8))
+    shap.summary_plot(shap_values, X_last[:100], feature_names=feature_names, plot_type="bar", show=False)
+    plt.tight_layout()
+    plt.savefig(output_dir / "shap_importance.png", dpi=150, bbox_inches='tight')
+    plt.close()
+    logger.info(f"Saved SHAP importance plot to {output_dir / 'shap_importance.png'}")
+
+    # Compute mean absolute SHAP values for ranking
+    mean_shap = np.abs(shap_values).mean(axis=0)
+
+    # Ensure mean_shap is 1D array of scalars
+    if len(mean_shap.shape) > 1:
+        mean_shap = mean_shap.flatten()[:len(feature_names)]
+
+    # Convert to list of floats for sorting
+    mean_shap_list = [float(x) for x in mean_shap]
+    feature_importance = sorted(zip(feature_names, mean_shap_list), key=lambda x: x[1], reverse=True)
+
+    max_importance = max(mean_shap_list) if mean_shap_list else 1.0
+
+    logger.info("\nTop 15 Most Important Features (SHAP):")
+    print("\n  ┌─────────────────────────────────────────────────┐")
+    print("  │            FEATURE IMPORTANCE (SHAP)            │")
+    print("  ├─────────────────────────────────────────────────┤")
+    for i, (name, importance) in enumerate(feature_importance[:15]):
+        bar_len = int(importance / max_importance * 25)
+        bar = "█" * bar_len
+        print(f"  │ {i+1:2d}. {name:<25} {importance:8.4f} {bar:<25} │")
+    print("  └─────────────────────────────────────────────────┘\n")
+
+    # Save feature importance to CSV
+    importance_df = pd.DataFrame(feature_importance, columns=["feature", "importance"])
+    importance_df.to_csv(output_dir / "feature_importance.csv", index=False)
+    logger.info(f"Saved feature importance to {output_dir / 'feature_importance.csv'}")
+
+
+
 if __name__ == "__main__":
     main()
+

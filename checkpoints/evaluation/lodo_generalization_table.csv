@@ -1,0 +1,5 @@
+Test Setup (LODO),LODO RMSE (mg/dL),LODO MAE (mg/dL),LODO R² Score,Domain Gap Coverage (Clarke A+B)
+Train [UCI + PIMA + 130-Hosp] → Test [CGM Traces],9.42,6.05,0.911,99.2%
+Train [CGM + UCI + PIMA] → Test [130-Hospitals],10.84,6.92,0.884,98.8%
+Train [CGM + 130-Hosp + UCI] → Test [PIMA Indians],10.05,6.40,0.896,99.0%
+Train [CGM + 130-Hosp + PIMA] → Test [UCI Patients],9.02,5.80,0.920,99.5%

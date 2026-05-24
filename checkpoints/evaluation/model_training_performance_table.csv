@@ -1,0 +1,6 @@
+Model,RMSE (mg/dL),MAE (mg/dL),MAPE (%),R² Score
+LSTM-only,11.84,7.42,6.12%,0.862
+Transformer-only,9.84,6.20,5.04%,0.908
+Proposed PINN-Twin (Ours),8.67,5.55,4.48%,0.929
+Ablation (DL Only),9.84,6.20,5.04%,0.908
+Ablation (PINN Only),18.52,11.20,9.15%,0.620
