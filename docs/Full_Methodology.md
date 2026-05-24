@@ -1,6 +1,6 @@
 # Mathematical Methodology of the Physics-Guided Personalized Digital Twin for T1D
 
-This document presents the complete mathematical methodology of the **Explainable Physics-Guided Personalized Digital Twin for T1D** framework. All derivations and formulations are detailed in standard LaTeX notation and mapped directly onto the ingestion, training, optimization, explainability, and personalization segments of the production codebase.
+This document presents the complete mathematical methodology of the **Explainable Physics-Guided Personalized Digital Twin for T1D** framework. All derivations and formulations are detailed in standard mathematical notation and mapped directly onto the ingestion, training, optimization, explainability, and personalization segments of the production codebase.
 
 ---
 
@@ -12,14 +12,14 @@ $$\mathbf{X} \in \mathbb{R}^{N \times T \times F}$$
 
 where:
 * $N$ represents the batch size of active window sequences.
-* $T = 24$ is the historical lookback sequence length, corresponding to $2\text{ hours}$ of continuous observation sampled at $\Delta t = 5\text{-minute}$ steps.
+* $T = 24$ is the historical lookback sequence length, corresponding to 2 hours of continuous observation sampled at $\Delta t = 5\text{ minute}$ steps.
 * $F = 43$ represents the unified feature dimension.
 
 At each timestep $t$, the feature vector $\mathbf{x}_t \in \mathbb{R}^{F}$ is decomposed into five distinct physical and demographic subvectors:
 
-$$\mathbf{x}_t = \left[ \mathbf{x}_t^{\text{CGM}} \,\|\, \mathbf{x}_t^{\text{Insulin}} \,\|\, \mathbf{x}_t^{\text{Meal}} \,\|\, \mathbf{x}_t^{\text{Temporal}} \,\|\, \mathbf{x}_t^{\text{Static}} \right]$$
+$$\mathbf{x}_t = \left[ \mathbf{x}_t^{\text{CGM}} \mathbin{\Vert} \mathbf{x}_t^{\text{Insulin}} \mathbin{\Vert} \mathbf{x}_t^{\text{Meal}} \mathbin{\Vert} \mathbf{x}_t^{\text{Temporal}} \mathbin{\Vert} \mathbf{x}_t^{\text{Static}} \right]$$
 
-where $\|$ represents vector concatenation:
+where $\mathbin{\Vert}$ represents vector concatenation:
 
 1. **Continuous Glucose Monitor (CGM) Features ($\mathbf{x}_t^{\text{CGM}} \in \mathbb{R}^6$)**:
    $$\mathbf{x}_t^{\text{CGM}} = \left[ G(t), \Delta_5 G(t), \Delta_{15} G(t), \Delta_{30} G(t), \mu_{1\text{h}}(t), \sigma_{1\text{h}}(t) \right]^T$$
@@ -50,7 +50,7 @@ Dynamic indicators are computed at each time step $t$ using the following physio
 ### 1. Multiscale Rates of Change (ROC)
 Glucose velocity is estimated using backward finite differences over horizons of $k \in \{1, 3, 6\}$ steps (5, 15, and 30 minutes):
 
-$$\Delta_k G(t) = \frac{G(t) - G(t - k\Delta t)}{k \cdot \Delta t} \quad \left[\text{mg/dL/min}\right]$$
+$$\Delta_k G(t) = \frac{G(t) - G(t - k\Delta t)}{k \cdot \Delta t} \quad \text{mg/dL/min}$$
 
 ### 2. Rolling Statistical Windows
 Historical glucose volatility and distribution are captured over a 1-hour window ($W = 12$ steps):
@@ -182,7 +182,7 @@ $$\mathbf{h}_t = \mathbf{o}_t \odot \tanh\left(\mathbf{c}_t\right)$$
 ### 3. Bidirectional Combination
 The bidirectional layer processes the sequence in both forward ($\vec{\mathbf{h}}_t$) and backward ($\overleftarrow{\mathbf{h}}_t$) directions, concatenating the final hidden representations at each time step:
 
-$$\tilde{\mathbf{h}}_t = \left[ \vec{\mathbf{h}}_t \,\|\, \overleftarrow{\mathbf{h}}_t \right] \quad \in \mathbb{R}^{2 \cdot d_{\text{hidden}}}$$
+$$\tilde{\mathbf{h}}_t = \left[ \vec{\mathbf{h}}_t \mathbin{\Vert} \overleftarrow{\mathbf{h}}_t \right] \quad \in \mathbb{R}^{2 \cdot d_{\text{hidden}}}$$
 
 ---
 
@@ -353,7 +353,7 @@ A base model containing optimized population parameters $\theta_{\text{pop}}$ is
 ### 2. Target Layer Separation and Head Fine-Tuning
 The model parameters are split into core frozen encoder layers $\theta_{\text{enc}}$ and active projection head layers $\theta_{\text{head}} = \{\mathbf{W}_{\text{fc1}}, \mathbf{b}_{\text{fc1}}, \mathbf{W}_{\text{fc2}}, \mathbf{b}_{\text{fc2}}\}$:
 
-$$\theta_{\text{pop}} = \left[ \theta_{\text{enc}} \,\|\, \theta_{\text{head}} \right]$$
+$$\theta_{\text{pop}} = \left[ \theta_{\text{enc}} \mathbin{\Vert} \theta_{\text{head}} \right]$$
 
 During personalization on an individual patient's dataset $\mathcal{D}_i$, gradients are backpropagated only through the head parameters:
 
