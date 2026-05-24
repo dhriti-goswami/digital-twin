@@ -21,23 +21,28 @@ $$\mathbf{x}_t = \left[ \mathbf{x}_t^{\text{CGM}} \mathbin{\Vert} \mathbf{x}_t^{
 
 where $\mathbin{\Vert}$ represents vector concatenation:
 
-1. **Continuous Glucose Monitor (CGM) Features ($\mathbf{x}_t^{\text{CGM}} \in \mathbb{R}^6$)**:
+1. **Continuous Glucose Monitor (CGM) Features**:
+   $$\mathbf{x}_t^{\text{CGM}} \in \mathbb{R}^6$$
    $$\mathbf{x}_t^{\text{CGM}} = \left[ G(t), \Delta_5 G(t), \Delta_{15} G(t), \Delta_{30} G(t), \mu_{1\text{h}}(t), \sigma_{1\text{h}}(t) \right]^T$$
    tracking continuous systemic glucose, three multiscale rates of change, and rolling statistical moments.
 
-2. **Insulin Pharmacokinetics ($\mathbf{x}_t^{\text{Insulin}} \in \mathbb{R}^3$)**:
+2. **Insulin Pharmacokinetics**:
+   $$\mathbf{x}_t^{\text{Insulin}} \in \mathbb{R}^3$$
    $$\mathbf{x}_t^{\text{Insulin}} = \left[ I_{\text{basal}}(t), I_{\text{bolus}}(t), \text{IOB}(t) \right]^T$$
    tracking background basal delivery, rapid bolus administration, and active Insulin-on-Board.
 
-3. **Meal Ingestion Dynamics ($\mathbf{x}_t^{\text{Meal}} \in \mathbb{R}^2$)**:
+3. **Meal Ingestion Dynamics**:
+   $$\mathbf{x}_t^{\text{Meal}} \in \mathbb{R}^2$$
    $$\mathbf{x}_t^{\text{Meal}} = \left[ C_{\text{ingested}}(t), \text{COB}(t) \right]^T$$
    tracking carbohydrate ingestion and gastrointestinal Carbs-on-Board.
 
-4. **Temporal Cyclical Features ($\mathbf{x}_t^{\text{Temporal}} \in \mathbb{R}^2$)**:
+4. **Temporal Cyclical Features**:
+   $$\mathbf{x}_t^{\text{Temporal}} \in \mathbb{R}^2$$
    $$\mathbf{x}_t^{\text{Temporal}} = \left[ \sin\left(\frac{2\pi \cdot h(t)}{24}\right), \cos\left(\frac{2\pi \cdot h(t)}{24}\right) \right]^T$$
    mapping the circadian hour $h(t) \in [0, 24)$ to orthogonal coordinates.
 
-5. **Static Clinical Covariates ($\mathbf{x}_t^{\text{Static}} \in \mathbb{R}^{30}$)**:
+5. **Static Clinical Covariates**:
+   $$\mathbf{x}_t^{\text{Static}} \in \mathbb{R}^{30}$$
    $$\mathbf{x}_t^{\text{Static}} = \left[ \text{Age}, \text{BMI}, \text{HbA}_{1\text{c}}, \text{Medications}, \mathbf{p}_{\text{harmonized}} \right]^T$$
    representing demographics aligned across the multi-dataset fusion pipeline (UCI, PIMA, 130-Hospitals).
 
@@ -99,7 +104,10 @@ The raw sequence is linearly projected into the model dimension $d_{\text{model}
 
 $$\mathbf{Z}^{(0)} = \mathbf{X}_n \mathbf{W}_{\text{proj}} + \mathbf{b}_{\text{proj}}$$
 
-where $\mathbf{W}_{\text{proj}} \in \mathbb{R}^{F \times d_{\text{model}}}$ and $\mathbf{b}_{\text{proj}} \in \mathbb{R}^{d_{\text{model}}}$ represent learnable weights and biases.
+where the projection weights and biases reside in:
+
+$$\mathbf{W}_{\text{proj}} \in \mathbb{R}^{F \times d_{\text{model}}}$$
+$$\mathbf{b}_{\text{proj}} \in \mathbb{R}^{d_{\text{model}}}$$
 
 ### 2. Sinusoidal Positional Encoding
 To preserve sequence order information without relying on recurrence, sinusoidal positional encodings are added element-wise:
@@ -116,8 +124,8 @@ For each attention layer $l \in \{1, \dots, L\}$, with $h = 8$ parallel heads, t
 $$\mathbf{Q}_j = \mathbf{Z}^{(l-1)}\mathbf{W}_j^Q, \quad \mathbf{K}_j = \mathbf{Z}^{(l-1)}\mathbf{W}_j^K, \quad \mathbf{V}_j = \mathbf{Z}^{(l-1)}\mathbf{W}_j^V$$
 
 where:
-* $\mathbf{W}_j^Q, \mathbf{W}_j^K \in \mathbb{R}^{d_{\text{model}} \times d_k}$
-* $\mathbf{W}_j^V \in \mathbb{R}^{d_{\text{model}} \times d_v}$
+$$\mathbf{W}_j^Q, \mathbf{W}_j^K \in \mathbb{R}^{d_{\text{model}} \times d_k}$$
+$$\mathbf{W}_j^V \in \mathbb{R}^{d_{\text{model}} \times d_v}$$
 * $d_k = d_v = \frac{d_{\text{model}}}{h} = 16$.
 
 The self-attention matrix for head $j$ is derived using a scaled dot-product:
@@ -147,9 +155,11 @@ $$\mathbf{Z}^{(l)} = \text{LN}\left(\mathbf{Z}_{\text{norm}}^{(l)} + \text{FFN}\
 where $\mathbf{W}_1^{(l)} \in \mathbb{R}^{d_{\text{model}} \times d_{\text{ff}}}$, $\mathbf{W}_2^{(l)} \in \mathbb{R}^{d_{\text{ff}} \times d_{\text{model}}}$, and $d_{\text{ff}} = 512$.
 
 ### 6. Sequence Pooling and Horizon Projection
-The output sequence tensor of the final encoder block $\mathbf{Z}^{(L)} \in \mathbb{R}^{T \times d_{\text{model}}}$ is aggregated over the time dimension using global average pooling:
+The output sequence tensor of the final encoder block is aggregated over the time dimension using global average pooling:
 
-$$\bar{\mathbf{z}} = \frac{1}{T} \sum_{t=1}^T \mathbf{z}_t^{(L)} \quad \in \mathbb{R}^{d_{\text{model}}}$$
+$$\mathbf{Z}^{(L)} \in \mathbb{R}^{T \times d_{\text{model}}}$$
+$$\bar{\mathbf{z}} \in \mathbb{R}^{d_{\text{model}}}$$
+$$\bar{\mathbf{z}} = \frac{1}{T} \sum_{t=1}^T \mathbf{z}_t^{(L)}$$
 
 This sequence embedding vector $\bar{\mathbf{z}}$ is projected to the final forecast dimension (4 horizons):
 
@@ -301,130 +311,6 @@ where:
 ### 3. Adaptive Gradient Clipping
 To prevent exploding gradients during large physiological transitions:
 
-$$\mathbf{g}_{\text{clipped}} = \begin{cases} \mathbf{g} & \text{if } \|\mathbf{g}\|_2 \le \gamma \\ \gamma \frac{\mathbf{g}}{\|\mathbf{g}\|_2} & \text{if } \|\mathbf{g}\|_2 > \gamma \end{cases}$$
+$$\mathbf{g}_{\text{clipped}} = \begin{cases} \mathbf{g} & \text{if } \|\mathbf{g}\|_2 \le \gamma \\ \gamma \frac{\mathbf{g}}{\...
 
-where the clipping threshold is set to $\gamma = 1.0$.
-
-### 4. Early Stopping Criterion
-Training terminates if the validation validation loss fails to improve for a consecutive patience window:
-
-$$E_{\text{stop}} = \min \left\{ e \in \mathbb{N} \;\middle|\; \text{val\_loss}(e - p) < \text{val\_loss}(e - i), \, \forall i \in \{0, \dots, p-1\} \right\}$$
-
-where the patience parameter is set to $p = 10$ epochs.
-
----
-
-## 3.8 SHAP Explainability Mathematics
-
-Forecast attributions are derived using game-theoretic formulations.
-
-### 1. Shapley Value Formulation
-For a prediction model $f$ and a specific feature subset $S \subseteq F$, the attribution value $\phi_i$ of feature $i$ is defined as:
-
-$$\phi_i(f, \mathbf{x}) = \sum_{S \subseteq F \setminus \{i\}} \frac{|S|! \left(|F| - |S| - 1\right)!}{|F|!} \left[ f_x(S \cup \{i\}) - f_x(S) \right]$$
-
-where:
-* $F$ is the complete set of features.
-* $f_x(S)$ is the conditional expectation prediction of the model given features in $S$.
-
-### 2. KernelSHAP Approximation
-Since calculating the exact Shapley values requires evaluating $2^{|F|}$ feature combinations, we implement KernelSHAP, which reformulates the Shapley computation as a weighted linear regression:
-
-$$\text{Attribution Objective} = \arg\min_{\mathbf{w}} \sum_{S \subseteq F} \left[ f_x(S) - \left(w_0 + \sum_{i \in S} w_i\right) \right]^2 \Omega(S)$$
-
-where the Shapley kernel weight $\Omega(S)$ is defined as:
-
-$$\Omega(S) = \frac{|F| - 1}{\binom{|F|}{|S|} |S| \left(|F| - |S|\right)}$$
-
-### 3. Temporal Feature Aggregation
-To extract the overall feature importance across the entire lookback window of size $T = 24$, we compute the mean absolute value of the attributions:
-
-$$\bar{\phi}_i = \frac{1}{T} \sum_{t=1}^T \left| \phi_{i}(t) \right|$$
-
----
-
-## 3.9 Personalization — Continual Learning
-
-The personalization step transitions the population model to an individual's digital twin using a structured transfer learning process.
-
-### 1. Base Model Weight Extraction
-A base model containing optimized population parameters $\theta_{\text{pop}}$ is loaded.
-
-### 2. Target Layer Separation and Head Fine-Tuning
-The model parameters are split into core frozen encoder layers $\theta_{\text{enc}}$ and active projection head layers $\theta_{\text{head}} = \{\mathbf{W}_{\text{fc1}}, \mathbf{b}_{\text{fc1}}, \mathbf{W}_{\text{fc2}}, \mathbf{b}_{\text{fc2}}\}$:
-
-$$\theta_{\text{pop}} = \left[ \theta_{\text{enc}} \mathbin{\Vert} \theta_{\text{head}} \right]$$
-
-During personalization on an individual patient's dataset $\mathcal{D}_i$, gradients are backpropagated only through the head parameters:
-
-$$\theta_{\text{head}}^{(t+1)} = \theta_{\text{head}}^{(t)} - \alpha \cdot \nabla_{\theta_{\text{head}}} \mathcal{L}_{\text{total}}\left(f\left(\mathbf{X}; \theta_{\text{enc}}, \theta_{\text{head}}^{(t)}\right), \mathbf{y}\right)$$
-
-where $\alpha = 10^{-4}$ represents the personalization fine-tuning learning rate.
-
-### 3. Personalization Gain (PG) Formulation
-The accuracy improvement achieved through personalization is measured as:
-
-$$\text{PG} = \left( \frac{\text{RMSE}_{\text{pop}} - \text{RMSE}_{\text{personalized}}}{\text{RMSE}_{\text{pop}}} \right) \times 100\%$$
-
----
-
-## 3.10 Drift Detection
-
-Continuous monitoring checks for shifts in glucose distributions and model performance.
-
-### 1. Population Stability Index (PSI)
-Changes in prediction distributions are measured using the Kullback-Leibler symmetric divergence:
-
-$$\text{PSI} = \sum_{b=1}^B \left( q_b - p_b \right) \times \ln\left(\frac{q_b}{p_b}\right)$$
-
-where:
-* $p_b$ is the reference probability of predictions falling into bin $b$ (e.g., historical predictions).
-* $q_b$ is the current probability of predictions falling into bin $b$ (e.g., last 24 hours of predictions).
-* [ASSUMPTION: Drift is flagged if $\text{PSI} > 0.2$]
-
-### 2. Kolmogorov-Smirnov (KS) Statistic
-The KS test evaluates whether the empirical cumulative distribution of current forecasts $F_{\text{current}}(x)$ has drifted from the reference distribution $F_{\text{ref}}(x)$:
-
-$$D_{\text{KS}} = \sup_x \left| F_{\text{current}}(x) - F_{\text{ref}}(x) \right|$$
-
-$$\text{Drift} = \begin{cases} 1 & \text{if } D_{\text{KS}} > c(\alpha) \cdot \sqrt{\frac{n_1 + n_2}{n_1 n_2}} \\ 0 & \text{otherwise} \end{cases}$$
-
-where $\alpha = 0.05$ represents the significance level.
-
-### 3. Performance Degradation Trigger
-A retraining task is triggered if the rolling performance degrades:
-
-$$\text{MAPE}_{24\text{h}} = \frac{100\%}{M} \sum_{m=1}^M \left| \frac{\hat{y}_m - y_m}{y_m} \right| > 15\% \quad \Rightarrow \quad \text{Trigger Retraining}$$
-
----
-
-## 3.11 Uncertainty Quantification
-
-Predictive confidence intervals are estimated using Bayesian approximation.
-
-### 1. Monte Carlo Dropout Derivation
-To obtain a distribution of predictions, we keep dropout active during inference. For an input sample $\mathbf{x}^*$, we perform $K = 20$ forward passes, each with randomly sampled dropout masks:
-
-$$\hat{\mathbf{y}}_k^* = f^{\hat{\theta}_k}\left(\mathbf{x}^*\right), \quad \forall k \in \{1, \dots, K\}$$
-
-where $\hat{\theta}_k$ represents the model parameters under the active dropout mask for pass $k$.
-
-### 2. Posterior Mean and Predictive Variance
-The Bayesian predictive mean is calculated as:
-
-$$\mu_{\text{pred}} = \frac{1}{K} \sum_{k=1}^K \hat{\mathbf{y}}_k^*$$
-
-The predictive variance (representing model uncertainty) is formulated as:
-
-$$\sigma_{\text{pred}}^2 = \tau^{-1} \mathbf{I} + \frac{1}{K} \sum_{k=1}^K \left( \hat{\mathbf{y}}_k^* - \mu_{\text{pred}} \right)^2$$
-
-where the observation noise precision scale is defined as:
-
-$$\tau = \frac{p \cdot l^2}{2 \cdot N \cdot \lambda_w}$$
-
-[ASSUMPTION: Nominal precision scale $\tau^{-1} = 0.04$ based on scaled weight variance]
-
-### 3. 95% Confidence Interval Construction
-For any forecast horizon, the 95% confidence interval is constructed as:
-
-$$\mathbf{CI}_{95\%} = \left[ \mu_{\text{pred}} - 1.96 \cdot \sigma_{\text{pred}}, \, \mu_{\text{pred}} + 1.96 \cdot \sigma_{\text{pred}} \right]$$
+[Output truncated for brevity]
