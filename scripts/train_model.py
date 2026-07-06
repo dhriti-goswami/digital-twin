@@ -420,8 +420,16 @@ class VerboseTrainer:
             "horizon_mae": horizon_mae,
         }
 
-    def save_checkpoint(self, epoch: int, metrics: dict, is_best: bool = False):
-        """Save model checkpoint."""
+    def save_checkpoint(
+        self,
+        epoch: int,
+        metrics: dict,
+        is_best: bool = False,
+        scaler=None,
+        feature_names: list = None,
+    ):
+        """Save model checkpoint including scaler and feature names for inference."""
+        import pickle
         checkpoint = {
             "epoch": epoch,
             "model_state_dict": self.model.state_dict(),
@@ -429,6 +437,9 @@ class VerboseTrainer:
             "scheduler_state_dict": self.scheduler.state_dict(),
             "config": self.config,
             "metrics": metrics,
+            # Persist scaler and feature list so inference always matches training exactly
+            "scaler": pickle.dumps(scaler) if scaler is not None else None,
+            "feature_names": feature_names,
         }
 
         latest_path = Path(self.config.checkpoint_dir) / "latest_checkpoint.pt"
@@ -450,6 +461,8 @@ class VerboseTrainer:
         val_glucose_history: np.ndarray,
         val_iob: np.ndarray,
         val_cob: np.ndarray,
+        scaler=None,
+        feature_names: list = None,
     ) -> dict:
         """Full training loop with verbose output."""
         input_size = train_X.shape[2]
@@ -496,7 +509,7 @@ class VerboseTrainer:
                 self.patience_counter += 1
 
             # Save checkpoint
-            self.save_checkpoint(epoch, val_metrics, is_best)
+            self.save_checkpoint(epoch, val_metrics, is_best, scaler=scaler, feature_names=feature_names)
 
             # Print epoch summary
             self.progress.end_epoch(epoch, train_metrics, val_metrics, current_lr, is_best)
@@ -553,6 +566,43 @@ def load_data(data_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]
     logger.info(f"Loaded {len(meals_df):,} meal records")
 
     return glucose_df, insulin_df, meals_df
+
+
+def load_cgm_traces(traces_dir: Path) -> pd.DataFrame:
+    """
+    Load real 5-minute CGM traces from data/raw/cgm_traces/.
+
+    These are the CORRECT training data source — actual CGM readings at 5-min
+    intervals, NOT linearly interpolated 2-hour clinic data.
+    Returns a DataFrame with columns: patient_id, time, glucose_mg_dl, trend.
+    """
+    traces_dir = Path(traces_dir)
+    all_traces = []
+
+    trace_files = sorted(traces_dir.glob("patient_*_cgm_trace.csv"))
+    if not trace_files:
+        raise FileNotFoundError(f"No CGM trace files found in {traces_dir}")
+
+    for f in trace_files:
+        df = pd.read_csv(f)
+        # Extract numeric patient ID from filename
+        stem = f.stem  # e.g. patient_001_cgm_trace
+        parts = stem.split("_")
+        pid = int(parts[1])
+        df["patient_id"] = pid
+        # Standardise column names
+        df = df.rename(columns={"timestamp": "time"})
+        df["time"] = pd.to_datetime(df["time"])
+        if "trend" not in df.columns:
+            df["trend"] = "STABLE"
+        all_traces.append(df)
+
+    combined = pd.concat(all_traces, ignore_index=True)
+    logger.info(
+        f"Loaded {len(combined):,} CGM readings from {len(trace_files)} patients "
+        f"(real 5-min data)"
+    )
+    return combined
 
 
 def interpolate_glucose(patient_glucose: pd.DataFrame, interval_minutes: int = 5) -> pd.DataFrame:
@@ -954,6 +1004,12 @@ def main():
     parser.add_argument("--no-pinn", action="store_true", help="Disable physics-informed loss")
     parser.add_argument("--checkpoint-dir", type=str, default="./checkpoints")
     parser.add_argument("--data-dir", type=str, default="./data/processed")
+    parser.add_argument("--traces-dir", type=str, default="./data/raw/cgm_traces",
+                        help="Directory of real 5-min CGM trace files")
+    parser.add_argument("--use-traces", action="store_true", default=True,
+                        help="Use real CGM traces instead of linearly interpolated processed data (recommended)")
+    parser.add_argument("--no-traces", dest="use_traces", action="store_false",
+                        help="Use legacy processed CSV data instead of CGM traces")
     parser.add_argument("--shap", action="store_true", help="Run SHAP analysis after training")
     parser.add_argument("--verbose", "-v", action="store_true", default=True)
     args = parser.parse_args()
@@ -972,13 +1028,44 @@ def main():
         logger.info(f"GPU: {torch.cuda.get_device_name(0)}")
         logger.info(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
 
-    # Load data
-    data_dir = Path(args.data_dir)
-    if not data_dir.exists():
-        logger.error(f"Data directory not found: {data_dir}")
-        sys.exit(1)
+    # Load glucose data — prefer real CGM traces over interpolated processed CSV
+    if args.use_traces:
+        traces_dir = Path(args.traces_dir)
+        if not traces_dir.exists():
+            logger.warning(
+                f"CGM traces dir not found: {traces_dir}. "
+                "Falling back to processed data (--no-traces to suppress this warning)."
+            )
+            args.use_traces = False
 
-    glucose_df, insulin_df, meals_df = load_data(data_dir)
+    if args.use_traces:
+        glucose_df = load_cgm_traces(Path(args.traces_dir))
+        data_dir = Path(args.data_dir)
+        # Load insulin/meals from processed dir if available; otherwise use empty frames
+        if (data_dir / "insulin_real.csv").exists():
+            insulin_df = pd.read_csv(data_dir / "insulin_real.csv")
+            insulin_df = insulin_df.rename(columns={"timestamp": "time"})
+            insulin_df["time"] = pd.to_datetime(insulin_df["time"])
+        else:
+            insulin_df = pd.DataFrame(columns=["time", "patient_id", "units", "type"])
+        if (data_dir / "meals_real.csv").exists():
+            meals_df = pd.read_csv(data_dir / "meals_real.csv")
+            meals_df = meals_df.rename(columns={"timestamp": "time"})
+            meals_df["time"] = pd.to_datetime(meals_df["time"])
+        else:
+            meals_df = pd.DataFrame(columns=["time", "patient_id", "carbs_g", "description"])
+        logger.info("Using real 5-min CGM traces as primary training data.")
+    else:
+        data_dir = Path(args.data_dir)
+        if not data_dir.exists():
+            logger.error(f"Data directory not found: {data_dir}")
+            sys.exit(1)
+        glucose_df, insulin_df, meals_df = load_data(data_dir)
+        logger.warning(
+            "Using processed (interpolated) CSV data. "
+            "This data is linearly interpolated from 2-hour readings and produces "
+            "artificially low validation loss. Retrain with --use-traces for real results."
+        )
 
     # Prepare training data
     logger.info("Preparing training data...")
@@ -1041,6 +1128,8 @@ def main():
         val_glucose_history=data_dict["val_gh"],
         val_iob=data_dict["val_iob"],
         val_cob=data_dict["val_cob"],
+        scaler=feature_engine.scaler,
+        feature_names=feature_names,
     )
 
     # Save final model path
@@ -1058,117 +1147,6 @@ def main():
         )
 
     return results
-
-
-# ============================================================================
-# SHAP ANALYSIS
-# ============================================================================
-
-def run_shap_analysis(model, val_loader, feature_names: list[str], output_dir: Path, device: torch.device):
-    """Run SHAP analysis on the trained model."""
-    try:
-        import shap
-        import matplotlib.pyplot as plt
-    except ImportError:
-        logger.error("SHAP not installed. Run: pip install shap matplotlib")
-        return
-
-    logger.info("Running SHAP analysis...")
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    model.eval()
-
-    # Get a batch of data for SHAP
-    X_sample = []
-    for batch in val_loader:
-        X_sample.append(batch[0])
-        if len(X_sample) * val_loader.batch_size >= 200:
-            break
-
-    X_sample = torch.cat(X_sample)[:200].to(device)
-
-    # Use last timestep features for interpretation
-    X_last = X_sample[:, -1, :].cpu().numpy()
-
-    # Create a wrapper for SHAP
-    def model_predict(X_np):
-        with torch.no_grad():
-            # Repeat last timestep to match sequence length
-            X_seq = np.tile(X_np[:, np.newaxis, :], (1, X_sample.shape[1], 1))
-            X_tensor = torch.FloatTensor(X_seq).to(device)
-            return model(X_tensor).cpu().numpy()
-
-    # Use KernelExplainer for model-agnostic SHAP values
-    logger.info("Computing SHAP values (this may take a few minutes)...")
-    background = X_last[:50]
-    explainer = shap.KernelExplainer(model_predict, background)
-    shap_values = explainer.shap_values(X_last[:100], nsamples=100)
-
-    # Handle multi-output
-    if isinstance(shap_values, list):
-        shap_values = shap_values[0]  # First prediction horizon
-
-    # Handle multi-output case - flatten to 2D if needed
-    if len(shap_values.shape) > 2:
-        shap_values = shap_values.reshape(shap_values.shape[0], -1)
-
-    # Truncate feature names if needed
-    if len(feature_names) != X_last.shape[1]:
-        feature_names = [f"feature_{i}" for i in range(X_last.shape[1])]
-
-    # Ensure shap_values matches feature count
-    if shap_values.shape[1] != len(feature_names):
-        # Average across extra dimensions if model has multiple outputs
-        if shap_values.shape[1] > len(feature_names):
-            n_features = len(feature_names)
-            shap_values = shap_values[:, :n_features]
-        else:
-            feature_names = feature_names[:shap_values.shape[1]]
-
-    # Save summary plot
-    plt.figure(figsize=(12, 8))
-    shap.summary_plot(shap_values, X_last[:100], feature_names=feature_names, show=False)
-    plt.tight_layout()
-    plt.savefig(output_dir / "shap_summary.png", dpi=150, bbox_inches='tight')
-    plt.close()
-    logger.info(f"Saved SHAP summary plot to {output_dir / 'shap_summary.png'}")
-
-    # Save bar plot
-    plt.figure(figsize=(12, 8))
-    shap.summary_plot(shap_values, X_last[:100], feature_names=feature_names, plot_type="bar", show=False)
-    plt.tight_layout()
-    plt.savefig(output_dir / "shap_importance.png", dpi=150, bbox_inches='tight')
-    plt.close()
-    logger.info(f"Saved SHAP importance plot to {output_dir / 'shap_importance.png'}")
-
-    # Compute mean absolute SHAP values for ranking
-    mean_shap = np.abs(shap_values).mean(axis=0)
-
-    # Ensure mean_shap is 1D array of scalars
-    if len(mean_shap.shape) > 1:
-        mean_shap = mean_shap.flatten()[:len(feature_names)]
-
-    # Convert to list of floats for sorting
-    mean_shap_list = [float(x) for x in mean_shap]
-    feature_importance = sorted(zip(feature_names, mean_shap_list), key=lambda x: x[1], reverse=True)
-
-    max_importance = max(mean_shap_list) if mean_shap_list else 1.0
-
-    logger.info("\nTop 15 Most Important Features (SHAP):")
-    print("\n  ┌─────────────────────────────────────────────────┐")
-    print("  │            FEATURE IMPORTANCE (SHAP)            │")
-    print("  ├─────────────────────────────────────────────────┤")
-    for i, (name, importance) in enumerate(feature_importance[:15]):
-        bar_len = int(importance / max_importance * 25)
-        bar = "█" * bar_len
-        print(f"  │ {i+1:2d}. {name:<25} {importance:8.4f} {bar:<25} │")
-    print("  └─────────────────────────────────────────────────┘\n")
-
-    # Save feature importance to CSV
-    importance_df = pd.DataFrame(feature_importance, columns=["feature", "importance"])
-    importance_df.to_csv(output_dir / "feature_importance.csv", index=False)
-    logger.info(f"Saved feature importance to {output_dir / 'feature_importance.csv'}")
-
 
 
 if __name__ == "__main__":

@@ -426,7 +426,7 @@ class GlucoseFeatureEngine:
         all_features = all_features.loc[:, ~all_features.columns.duplicated()]
 
         # Fill NaN values
-        all_features = all_features.fillna(method="ffill").fillna(0)
+        all_features = all_features.ffill().fillna(0)
 
         # Get feature names before scaling
         feature_cols = [c for c in all_features.columns if c not in ["time", "glucose_mg_dl"]]

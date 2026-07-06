@@ -352,6 +352,31 @@ class DataIngestion:
             self.session.rollback()
             raise
 
+    def get_patient(self, patient_id: int) -> dict | None:
+        """Return a patient record by internal ID, or None if not found."""
+        try:
+            row = self.session.execute(
+                text("""
+                    SELECT id, external_id, age, gender, weight_kg, height_cm,
+                           diabetes_type, hba1c_baseline, total_daily_insulin,
+                           carb_ratio, correction_factor, created_at, updated_at
+                    FROM patients
+                    WHERE id = :pid
+                """),
+                {"pid": patient_id},
+            ).fetchone()
+            if row is None:
+                return None
+            keys = [
+                "id", "external_id", "age", "gender", "weight_kg", "height_cm",
+                "diabetes_type", "hba1c_baseline", "total_daily_insulin",
+                "carb_ratio", "correction_factor", "created_at", "updated_at",
+            ]
+            return dict(zip(keys, row))
+        except Exception as e:
+            logger.error(f"Failed to get patient {patient_id}: {e}")
+            return None
+
     def get_patient_cgm_history(
         self,
         patient_id: int,

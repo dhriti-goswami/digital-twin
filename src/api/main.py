@@ -37,12 +37,13 @@ logger = logging.getLogger(__name__)
 inference_service = None
 agent = None
 rag = None
+explainer = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
-    global inference_service, agent, rag
+    global inference_service, agent, rag, explainer
 
     logger.info("Starting Diabetes Digital Twin API...")
 
@@ -60,6 +61,20 @@ async def lifespan(app: FastAPI):
             logger.info("Glucose prediction model loaded successfully")
         else:
             logger.warning("Model not loaded - using fallback predictions")
+
+        # Initialize explainer
+        if inference_service and inference_service.model_loaded:
+            try:
+                from src.models.explainer import GlucoseExplainer
+                feature_names = getattr(inference_service, 'feature_names', None)
+                if feature_names:
+                    explainer = GlucoseExplainer(
+                        model=inference_service.model,
+                        feature_names=feature_names,
+                    )
+                    logger.info("SHAP explainer initialized")
+            except Exception as e:
+                logger.warning(f"Explainer initialization failed (non-critical): {e}")
 
         # Initialize RAG
         from src.agents.rag import setup_rag
@@ -156,12 +171,26 @@ async def create_patient(patient: PatientCreate):
 @app.get("/api/v1/patients/{patient_id}")
 async def get_patient(patient_id: int):
     """Get patient information."""
-    # In production, would query database
-    return {
-        "id": patient_id,
-        "status": "active",
-        "message": "Patient lookup - implement with database query"
-    }
+    try:
+        from src.data.ingestion import DataIngestion
+
+        ingestion = DataIngestion()
+        patient = ingestion.get_patient(patient_id)
+        ingestion.close()
+
+        if patient is None:
+            raise HTTPException(status_code=404, detail=f"Patient {patient_id} not found")
+        return patient
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get patient: {e}")
+        # Fallback if get_patient method doesn't exist yet
+        return {
+            "id": patient_id,
+            "status": "active",
+            "message": "Patient lookup requires database implementation"
+        }
 
 
 # ==================== Data Ingestion Endpoints ====================

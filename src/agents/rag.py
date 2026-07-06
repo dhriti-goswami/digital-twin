@@ -455,6 +455,10 @@ class MedicalGuidelinesRAG:
 
         return formatted_results
 
+    def query(self, query: str, n_results: int = 5, **kwargs) -> list[dict]:
+        """Alias for search() for backward compatibility."""
+        return self.search(query, n_results=n_results, **kwargs)
+
     def get_context_for_glucose(
         self,
         current_glucose: float,
@@ -526,6 +530,17 @@ class MedicalGuidelinesRAG:
             context_parts.append("")
 
         return "\n".join(context_parts)
+
+
+    def query(self, query: str, n_results: int = 5) -> str:
+        """Alias for search() that returns concatenated text instead of a list."""
+        results = self.search(query, n_results=n_results)
+        if not results:
+            return "No relevant guidelines found."
+        parts = []
+        for r in results:
+            parts.append(f"### {r['title']}\n{r['content']}")
+        return "\n\n".join(parts)
 
 
 def setup_rag(persist_directory: str = "./data/vectors") -> MedicalGuidelinesRAG:

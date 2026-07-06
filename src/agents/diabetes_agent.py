@@ -15,10 +15,14 @@ from typing import Any, Optional
 import numpy as np
 
 try:
-    from langchain_community.llms import Ollama
+    from langchain_ollama import OllamaLLM
     OLLAMA_AVAILABLE = True
 except ImportError:
-    OLLAMA_AVAILABLE = False
+    try:
+        from langchain_community.llms import Ollama as OllamaLLM
+        OLLAMA_AVAILABLE = True
+    except ImportError:
+        OLLAMA_AVAILABLE = False
 
 from src.agents.rag import MedicalGuidelinesRAG, setup_rag
 
@@ -91,7 +95,7 @@ class DiabetesAgent:
         self.rag = rag or setup_rag()
 
         # Initialize Ollama LLM
-        self.llm = Ollama(
+        self.llm = OllamaLLM(
             model=model_name,
             base_url=ollama_base_url,
             temperature=temperature,
