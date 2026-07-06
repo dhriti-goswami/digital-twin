@@ -96,9 +96,9 @@ def build_features(df: pd.DataFrame) -> np.ndarray:
     t_min = df["t_min"].values.astype(np.float32)
 
     # ── CGM features ──────────────────────────────────────────────────────────
-    roc_5 = np.diff(g, prepend=g[0])             # rate of change (5-min)
-    roc_15 = np.diff(g, n=3, prepend=[g[0]] * 3) # roc 15-min
-    roc_30 = np.diff(g, n=6, prepend=[g[0]] * 6) # roc 30-min
+    roc_5 = np.concatenate([[0.0], g[1:] - g[:-1]])          # 5-min rate of change
+    roc_15 = np.concatenate([[0.0, 0.0, 0.0], g[3:] - g[:-3]])  # 15-min (3-step)
+    roc_30 = np.concatenate([[0.0]*6, g[6:] - g[:-6]])     # 30-min (6-step)
 
     g_mean_1h = _rolling(g, 12, "mean")
     g_std_1h = _rolling(g, 12, "std")

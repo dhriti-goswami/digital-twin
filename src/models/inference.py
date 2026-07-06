@@ -346,12 +346,69 @@ class GlucoseInferenceService:
         insulin_units: float = 0,
         exercise_minutes: int = 0,
         exercise_intensity: str = "moderate",
+        patient_name: str = "adult#001",
     ) -> list[dict]:
-        """Simulate what-if scenario. Returns trajectory over 3 hours."""
-        current = float(cgm_df["glucose_mg_dl"].iloc[-1])
-        trajectory = [{"time": 0, "glucose": current}]
+        """
+        Simulate a what-if scenario using the UVA/Padova ODE (true digital twin).
 
-        for t in range(15, 181, 15):
+        Falls back to a simple pharmacokinetic approximation if the ODE fails.
+        Returns a 3-hour glucose trajectory at 5-minute intervals.
+        """
+        current = float(cgm_df["glucose_mg_dl"].iloc[-1])
+
+        try:
+            from src.models.t1d_ode import T1DPatient
+
+            patient = T1DPatient.from_name(patient_name)
+
+            # Adjust initial state so subcutaneous glucose ≈ current CGM
+            # x[12] / Vg = current → x[12] = current * Vg
+            init = patient.init_state.copy()
+            init[12] = current * float(patient._params.Vg)
+            init[3] = init[12]  # plasma glucose ≈ subcutaneous
+            patient._init_state = init
+            patient.reset()
+
+            basal = patient.basal_rate   # U/min
+            n_steps = 36  # 3 hours at 5-min intervals
+
+            # Exercise effect: reduce insulin sensitivity in UVA model indirectly
+            # via glucose uptake increase (simplified: additional glucose disposal)
+            exercise_factor = {"light": 0.0005, "moderate": 0.001, "vigorous": 0.002}.get(
+                exercise_intensity, 0.001
+            )
+
+            trajectory = [{"time": 0, "glucose": current}]
+            for step in range(1, n_steps + 1):
+                t_min = step * 5
+
+                # Meal at t=0 (first step only)
+                cho = carbs_grams if step == 1 else 0.0
+
+                # Insulin bolus over 5-min window at t=0
+                bolus_u_min = (insulin_units / 5.0) if step == 1 else 0.0
+                ins = basal + bolus_u_min
+
+                # Advance ODE
+                patient.step(cho, ins)
+                g = patient.cgm
+
+                # Exercise: simplified glucose-lowering effect
+                if exercise_minutes > 0 and t_min <= exercise_minutes + 60:
+                    active_min = min(t_min, exercise_minutes)
+                    g -= g * exercise_factor * active_min
+
+                g = float(max(40.0, min(400.0, g)))
+                trajectory.append({"time": t_min, "glucose": round(g, 1)})
+
+            return trajectory
+
+        except Exception as e:
+            logger.warning("ODE simulation failed (%s), using PK fallback", e)
+
+        # ── Fallback: simple pharmacokinetic model ────────────────────────────
+        trajectory = [{"time": 0, "glucose": current}]
+        for t in range(5, 181, 5):
             glucose = current
 
             if carbs_grams > 0:
