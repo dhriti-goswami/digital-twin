@@ -249,6 +249,11 @@ def simulate_patient(
 
     basal = patient.basal_rate   # U/min
 
+    # Patient-appropriate ICR via 500-rule: ICR = 500 / TDD
+    # Basal typically ~50% of TDD in T1D, so TDD ≈ 2 × daily basal
+    tdd_est = max(10.0, basal * 60 * 24 * 2)
+    icr = max(5.0, min(50.0, 500.0 / tdd_est))
+
     rows = []
     patient.reset()
 
@@ -267,9 +272,7 @@ def simulate_patient(
             if t_in_day == meal_time:
                 cho_g = max(5.0, rng.normal(cho_mean, cho_std))
                 cho_this_step = cho_g
-                # Bolus: 1 U per ~10g carbs (ICR), rounded
-                icr = float(getattr(patient._params, "CL", 10))
-                bolus_u = cho_g / max(icr, 5.0)
+                bolus_u = cho_g / icr
                 # Deliver over 5 minutes (to ODE's U/min)
                 bolus_u_min = bolus_u / STEP
 
@@ -277,7 +280,7 @@ def simulate_patient(
         if t_in_day == (15 * 60) and rng.random() < SNACK_PROB:
             snack_g = rng.uniform(10, 30)
             cho_this_step += snack_g
-            bolus_u_min += snack_g / 15.0 / STEP
+            bolus_u_min += snack_g / icr / STEP
 
         insulin_u_min = basal + bolus_u_min
 

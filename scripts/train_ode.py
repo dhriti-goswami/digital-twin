@@ -69,7 +69,7 @@ class ODETrainer:
     def __init__(self, config: TrainingConfig, device: torch.device):
         self.config = config
         self.device = device
-        self.best_val_loss = float("inf")
+        self.best_val_mae = float("inf")   # select by MAE, not clinical loss
         self.patience_counter = 0
         Path(config.checkpoint_dir).mkdir(parents=True, exist_ok=True)
 
@@ -94,8 +94,8 @@ class ODETrainer:
         optimizer = torch.optim.AdamW(
             model.parameters(), lr=self.config.learning_rate, weight_decay=self.config.weight_decay
         )
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-            optimizer, T_0=10, T_mult=2, eta_min=1e-6
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode="min", factor=0.5, patience=5, min_lr=1e-6
         )
 
         progress = ProgressTracker(self.config.epochs, len(train_loader))
@@ -147,9 +147,13 @@ class ODETrainer:
             history["val_mae"].append(mae)
             history["val_rmse"].append(rmse)
 
-            is_best = avg_val_loss < self.best_val_loss
+            # Save history after every epoch so evaluate.py can plot partial curves
+            hist_path = Path(self.config.checkpoint_dir) / "training_history.npz"
+            np.savez(str(hist_path), **{k: np.array(v) for k, v in history.items()})
+
+            is_best = mae < self.best_val_mae
             if is_best:
-                self.best_val_loss = avg_val_loss
+                self.best_val_mae = mae
                 self.patience_counter = 0
             else:
                 self.patience_counter += 1
@@ -167,7 +171,7 @@ class ODETrainer:
                 is_best,
             )
 
-            scheduler.step()
+            scheduler.step(mae)
 
             if self.patience_counter >= self.config.early_stopping_patience:
                 logger.warning("Early stopping at epoch %d", epoch + 1)
@@ -180,7 +184,7 @@ class ODETrainer:
             model.load_state_dict(ckpt["model_state_dict"])
 
         progress.end_training({"val_mae": history["val_mae"][-1], "val_rmse": history["val_rmse"][-1]},
-                               self.best_val_loss)
+                               self.best_val_mae)
 
         # Save learning curves for evaluation script
         hist_path = Path(self.config.checkpoint_dir) / "training_history.npz"
@@ -217,7 +221,7 @@ def parse_args():
     p.add_argument("--model", default="transformer", choices=["transformer", "lstm"])
     p.add_argument("--epochs", type=int, default=100)
     p.add_argument("--batch-size", type=int, default=128)
-    p.add_argument("--lr", type=float, default=1e-3)
+    p.add_argument("--lr", type=float, default=3e-4)
     p.add_argument("--hidden-size", type=int, default=128)
     p.add_argument("--num-layers", type=int, default=4)
     p.add_argument("--seq-length", type=int, default=24)
@@ -252,7 +256,10 @@ def main():
     logger.info("Features (%d): %s …", len(FEATURE_NAMES), ", ".join(FEATURE_NAMES[:6]))
     gc.collect()
 
-    # 2. Build model
+    # 2. Build model — seed for reproducible initialization
+    torch.manual_seed(42)
+    if device.type == "cuda":
+        torch.cuda.manual_seed(42)
     model = GlucosePredictor(
         input_size=data["n_features"],
         model_type=args.model,
