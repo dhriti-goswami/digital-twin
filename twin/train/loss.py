@@ -110,28 +110,52 @@ def physics_loss(residual: Tensor) -> Tensor:
     return residual.pow(2).mean()
 
 
-def parameter_prior_loss(params: PatientParams) -> Tensor:
-    """Keep estimated parameters near population values, in normalised units.
+#: Reference weight used to convert the estimated absolute volumes back to the
+#: per-kilogram quantities the bounds are expressed in.
+_REFERENCE_WEIGHT_KG = 70.0
 
-    Each parameter is scaled by the width of its admissible interval before being
-    compared, so a parameter spanning 1e-6..3e-5 is not ignored relative to one
-    spanning 30..90. Without this the optimiser can park a weakly-identified
-    parameter at an extreme that happens to fit, and the resulting insulin
-    sensitivity would not be a physiological estimate.
+
+def normalised_parameters(params: PatientParams) -> tuple[Tensor, Tensor]:
+    """Estimated parameters and their population targets, in interval-width units.
+
+    Returns ``(values, targets)``, both ``(B, n_estimated)``. Dividing by each
+    parameter's admissible width is what makes the terms comparable: without it a
+    parameter spanning ``1e-6..3e-5`` contributes nothing beside one spanning
+    ``30..90``, and the prior would constrain only the large-magnitude parameters.
+
+    Built once per batch and shared by both parameter penalties. Assembling it as a
+    single matrix rather than looping over ten names per subject is what keeps the
+    cost off the training loop: the loop form doubled epoch time as soon as the
+    parameter head was unfrozen.
     """
-    total = torch.zeros((), device=params.p2.device, dtype=params.p2.dtype)
+    columns: list[Tensor] = []
+    targets: list[float] = []
     for name in ESTIMATED:
         bound = BOUNDS[name]
         width = bound.high - bound.low
-        target = POPULATION_MEANS[name]
         if name == "V_G_per_kg":
-            value = params.V_G / params.p2.new_tensor(70.0)
+            value = params.V_G / _REFERENCE_WEIGHT_KG
         elif name == "V_I_per_kg":
-            value = params.V_I / params.p2.new_tensor(70.0)
+            value = params.V_I / _REFERENCE_WEIGHT_KG
         else:
             value = getattr(params, name)
-        total = total + (((value - target) / width) ** 2).mean()
-    return total / len(ESTIMATED)
+        columns.append(value.reshape(-1) / width)
+        targets.append(POPULATION_MEANS[name] / width)
+
+    values = torch.stack(columns, dim=-1)
+    target = values.new_tensor(targets)
+    return values, target
+
+
+def parameter_prior_loss(params: PatientParams) -> Tensor:
+    """Keep estimated parameters near population values, in normalised units.
+
+    Without this the optimiser can park a weakly-identified parameter at an extreme
+    that happens to fit, and the resulting insulin sensitivity would not be a
+    physiological estimate.
+    """
+    values, target = normalised_parameters(params)
+    return ((values - target) ** 2).mean()
 
 
 def temporal_consistency_loss(
@@ -144,27 +168,35 @@ def temporal_consistency_loss(
     this the parameter head can absorb per-window prediction error into the
     parameters, which would produce an excellent fit and a meaningless insulin
     sensitivity -- the estimate has to be stable to be a measurement of anything.
+
+    Computed with scatter reductions over subject groups rather than a Python loop,
+    which is a pure speedup: the population variance per group per parameter is the
+    same quantity either way.
     """
-    device = params.p2.device
-    dtype = params.p2.dtype
-    total = torch.zeros((), device=device, dtype=dtype)
-    count = 0
-    for subject in torch.unique(subject_index):
-        mask = subject_index == subject
-        if int(mask.sum()) < 2:
-            continue
-        for name in ESTIMATED:
-            bound = BOUNDS[name]
-            width = bound.high - bound.low
-            if name == "V_G_per_kg":
-                value = params.V_G[mask] / params.p2.new_tensor(70.0)
-            elif name == "V_I_per_kg":
-                value = params.V_I[mask] / params.p2.new_tensor(70.0)
-            else:
-                value = getattr(params, name)[mask]
-            total = total + (value.std(unbiased=False) / width) ** 2
-        count += 1
-    return total / max(count * len(ESTIMATED), 1)
+    values, _ = normalised_parameters(params)
+    groups, counts = torch.unique(subject_index, return_counts=True)
+    if groups.numel() == 0:
+        return values.new_zeros(())
+
+    # Remap subject indices to a dense 0..G-1 range so they can index a scatter.
+    remapped = torch.searchsorted(groups, subject_index)
+    n_groups = int(groups.numel())
+    per_group = counts.to(values.dtype).unsqueeze(-1)
+
+    sums = values.new_zeros(n_groups, values.shape[-1])
+    sums.index_add_(0, remapped, values)
+    means = sums / per_group
+
+    deviation = values - means[remapped]
+    squared = values.new_zeros(n_groups, values.shape[-1])
+    squared.index_add_(0, remapped, deviation**2)
+    variance = squared / per_group
+
+    # Only groups with at least two windows carry information about stability.
+    informative = counts > 1
+    if not bool(informative.any()):
+        return values.new_zeros(())
+    return variance[informative].mean()
 
 
 class AdaptiveWeights(nn.Module):
