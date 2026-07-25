@@ -262,10 +262,152 @@ def command_train(config: Config, *, fold_index: int | None = None) -> int:
     return 0
 
 
+
+def command_ablate(config: Config, *, ids: list[str] | None) -> int:
+    """Run the ablation matrix and write the comparison table.
+
+    Every configuration shares the identical corpus, splits, scaler, seed and epoch
+    budget, so the only difference between two rows is the thing being ablated.
+    """
+    from twin.train.ablations import matrix_table, resolve
+
+    out_root = config.out_dir / "ablations"
+    out_root.mkdir(parents=True, exist_ok=True)
+    matrix_table().to_csv(out_root / "ablation_matrix.csv", index=False)
+
+    rows = []
+    for ablation in resolve(ids):
+        variant = ablation.apply(config)
+        print(f"\n=== {ablation.id}: {ablation.label} ===", flush=True)
+        command_train(variant, fold_index=None)
+        board = pd.read_csv(variant.out_dir / "leaderboard_mae.csv")
+        board = board[board["method"] != "persistence"]
+        for _, record in board.iterrows():
+            rows.append(
+                {
+                    "ablation": ablation.id,
+                    "label": ablation.label,
+                    "isolates": ablation.isolates,
+                    "horizon_min": record["horizon_min"],
+                    "mae_mean": record["mae_mean"],
+                    "mae_sd": record["mae_sd"],
+                }
+            )
+
+    table = pd.DataFrame(rows)
+    table.to_csv(out_root / "ablation_results.csv", index=False)
+    print()
+    if not table.empty:
+        pivot = table.pivot_table(
+            index="ablation", columns="horizon_min", values="mae_mean"
+        ).round(2)
+        print("MAE (mg/dL), mean across subjects:")
+        print(pivot.to_string())
+    _write_manifest(config, out_root, {"stage": "ablate", "ablations": [a.id for a in resolve(ids)]})
+    return 0
+
+
 def command_report(config: Config) -> int:
-    """Regenerate every table and figure from saved predictions."""
-    print("report stage not yet implemented", file=sys.stderr)
-    return 1
+    """Regenerate every table and figure from saved predictions.
+
+    Nothing is recomputed from a model and nothing is hand-typed: the figures and
+    the tables are both derived from the stored prediction arrays, so they cannot
+    disagree with each other or go stale.
+    """
+    import numpy as np
+
+    from twin.eval.figures import (
+        plot_error_grid,
+        plot_horizon_metric,
+        plot_learning_curves,
+        plot_skill_score,
+    )
+    from twin.metrics.errorgrid import assert_verified
+    from twin.physio.params import assert_bounds_sourced, second_hand_bounds
+
+    # Reporting gates: refuse to emit a paper table from unverified boundaries or
+    # placeholder parameter ranges.
+    assert_verified("clarke")
+    assert_verified("parkes")
+    assert_bounds_sourced()
+
+    root = config.out_dir
+    figures = root / "figures"
+    figures.mkdir(parents=True, exist_ok=True)
+
+    summaries: dict[str, pd.DataFrame] = {}
+    predictions: dict[str, dict[str, np.ndarray]] = {}
+    for directory in sorted((root / config.split.protocol / "test").glob("*")):
+        if not (directory / "summary.csv").is_file():
+            continue
+        method = directory.name
+        summaries[method] = pd.read_csv(directory / "summary.csv")
+        archive = directory / "predictions.npz"
+        if archive.is_file():
+            with np.load(archive) as data:
+                predictions[method] = {key: data[key] for key in data.files}
+
+    if not summaries:
+        print(f"no results found under {root}; run `train` or `baselines` first",
+              file=sys.stderr)
+        return 1
+
+    written: list[Path] = []
+    for metric in ("rmse", "mae"):
+        if f"{metric}_mean" not in next(iter(summaries.values())).columns:
+            continue
+        path = figures / f"{metric}_by_horizon.png"
+        plot_horizon_metric(summaries, path, metric=metric, protocol=config.split.protocol)
+        written.append(path)
+
+    for method, arrays in predictions.items():
+        if method == "persistence":
+            continue
+        true = np.concatenate([v for k, v in sorted(arrays.items()) if k.startswith("true__")])
+        pred = np.concatenate([v for k, v in sorted(arrays.items()) if k.startswith("pred__")])
+        if true.size == 0:
+            continue
+        for index, horizon in enumerate(config.data.horizons_min):
+            for grid in ("clarke", "parkes"):
+                path = figures / f"{grid}_{method}_{horizon}min.png"
+                plot_error_grid(
+                    np.clip(true[:, index], 1.0, None),
+                    np.clip(pred[:, index], 1.0, None),
+                    path,
+                    grid=grid,
+                    horizon_min=horizon,
+                    protocol=config.split.protocol,
+                )
+                written.append(path)
+
+    skill_path = root / "skill_vs_persistence.csv"
+    if skill_path.is_file():
+        path = figures / "skill_vs_persistence.png"
+        plot_skill_score(pd.read_csv(skill_path), path, protocol=config.split.protocol)
+        written.append(path)
+
+    history_path = root / "training_history.csv"
+    if history_path.is_file():
+        path = figures / "learning_curves.png"
+        plot_learning_curves(pd.read_csv(history_path), path)
+        written.append(path)
+
+    disclosures = second_hand_bounds()
+    if disclosures:
+        pd.DataFrame(
+            [{"parameter": k, "note": v} for k, v in sorted(disclosures.items())]
+        ).to_csv(root / "second_hand_parameters.csv", index=False)
+
+    print(f"wrote {len(written)} figures under {figures}")
+    for path in written:
+        print(f"  {path}")
+    if disclosures:
+        print()
+        print("parameter ranges resting on a secondary source (disclose in the paper):")
+        for name in sorted(disclosures):
+            print(f"  {name}")
+    _write_manifest(config, root, {"stage": "report", "n_figures": len(written)})
+    return 0
 
 
 # --------------------------------------------------------------------------- #
@@ -300,6 +442,10 @@ def build_parser() -> argparse.ArgumentParser:
     train.add_argument("--fold-index", type=int, default=None,
                        help="train only one LOSO fold, by index")
 
+    ablate = subparsers.add_parser("ablate", help="run the ablation matrix")
+    ablate.add_argument("--ids", nargs="+", default=None,
+                        help="ablation ids to run, e.g. A0 A1 A3 (default: all runnable)")
+
     subparsers.add_parser("report", help="regenerate all tables and figures")
     return parser
 
@@ -315,6 +461,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_baselines(config, methods=args.methods, part=args.part)
     if args.command == "train":
         return command_train(config, fold_index=args.fold_index)
+    if args.command == "ablate":
+        return command_ablate(config, ids=args.ids)
     if args.command == "report":
         return command_report(config)
     parser.error(f"unknown command {args.command!r}")
