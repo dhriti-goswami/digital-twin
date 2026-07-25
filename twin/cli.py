@@ -222,11 +222,15 @@ def command_train(config: Config, *, fold_index: int | None = None) -> int:
             mask = evaluation["subject_index"] == index
             predictions[subject_id] = evaluation["predictions"][mask]
 
-        np.savez_compressed(
-            out_root / fold.name / "test_diagnostics.npz",
-            insulin_sensitivity=evaluation["insulin_sensitivity"],
-            subject_index=evaluation["subject_index"],
-        )
+        diagnostics = {
+            "insulin_sensitivity": evaluation["insulin_sensitivity"],
+            "subject_index": evaluation["subject_index"],
+            "targets": evaluation["targets"],
+        }
+        for key in ("quantile_predictions", "quantile_levels"):
+            if key in evaluation:
+                diagnostics[key] = evaluation[key]
+        np.savez_compressed(out_root / fold.name / "test_diagnostics.npz", **diagnostics)
 
     merged = folds[0] if len(folds) == 1 else None
     if merged is None:

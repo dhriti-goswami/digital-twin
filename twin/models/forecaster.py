@@ -187,6 +187,99 @@ class ParameterHead(nn.Module):
         return self.net(context)
 
 
+class QuantileHead(nn.Module):
+    """Median spline coefficients plus a non-crossing quantile band at each horizon.
+
+    The band is emitted **per horizon in glucose units**, not as an offset to the
+    spline coefficients. That is forced by the basis: cubic B-splines form a partition
+    of unity, so the anchored trajectory
+
+    .. math::
+
+        G(t) = G_0 + \sum_k c_k\,(B_k(t) - B_k(0))
+
+    is *invariant* to adding a constant to every coefficient --
+    ``sum_k delta (B_k(t) - B_k(0)) = delta (1 - 1) = 0``. A first attempt put the
+    quantile offsets in coefficient space and produced a band of exactly zero width;
+    the property that makes the anchoring exact also makes uniform coefficient shifts
+    invisible.
+
+    Non-crossing is guaranteed by construction: offsets pass through ``softplus`` and
+    accumulate outward from the median, so no network output can invert the order. A
+    crossed quantile would make the lower band meaningless exactly where it is needed.
+
+    The band is zero-width at ``t = 0`` by design -- the anchor is an observation, not
+    a prediction -- and free to widen with horizon.
+
+    Why quantiles at all: a point forecast trained on a mean-seeking loss regresses
+    toward the centre, measured here at +7.29 mg/dL below 70 mg/dL even with the
+    physics removed entirely, so it understates hypoglycaemia risk by construction.
+    The remedy is distributional -- predict the lower tail and alarm on it -- rather
+    than tilting the objective, which would inflate error-grid zone A and make the
+    safety table depend on the loss.
+    """
+
+    INIT_SCALE = 1e-2
+    #: Initial half-band width [mg/dL] between adjacent quantiles.
+    INIT_SPREAD = 8.0
+
+    def __init__(
+        self,
+        d_model: int,
+        n_basis: int,
+        quantiles: tuple[float, ...],
+        n_horizons: int,
+        *,
+        hidden: int = 64,
+    ) -> None:
+        super().__init__()
+        self.quantiles = quantiles
+        self.n_basis = n_basis
+        self.n_horizons = n_horizons
+        self.median_index = quantiles.index(0.5)
+        self.n_offsets = len(quantiles) - 1
+
+        self.median = nn.Sequential(
+            nn.Linear(d_model, hidden), nn.GELU(), nn.Linear(hidden, n_basis)
+        )
+        self.band = nn.Sequential(
+            nn.Linear(d_model, hidden),
+            nn.GELU(),
+            nn.Linear(hidden, self.n_offsets * n_horizons),
+        )
+        with torch.no_grad():
+            self.median[-1].weight.mul_(self.INIT_SCALE)
+            self.median[-1].bias.zero_()
+            self.band[-1].weight.mul_(self.INIT_SCALE)
+            # softplus(x) = INIT_SPREAD  ->  x = log(exp(spread) - 1)
+            self.band[-1].bias.fill_(math.log(math.expm1(self.INIT_SPREAD)))
+
+    def forward(self, context: Tensor) -> tuple[Tensor, Tensor]:
+        """Return ``(median_coefficients, band_offsets)``.
+
+        ``median_coefficients`` is ``(B, n_basis)``; ``band_offsets`` is
+        ``(B, n_quantiles, n_horizons)`` in mg/dL relative to the median, ascending
+        across the quantile axis with an exact zero at the median.
+        """
+        coefficients = self.median(context)
+        offsets = nn.functional.softplus(
+            self.band(context).reshape(-1, self.n_offsets, self.n_horizons)
+        )
+
+        below = self.median_index
+        zero = offsets.new_zeros(offsets.shape[0], 1, self.n_horizons)
+        levels: list[Tensor] = [zero]
+        current = zero
+        for step in range(below):
+            current = current - offsets[:, below - 1 - step : below - step]
+            levels.insert(0, current)
+        current = zero
+        for step in range(self.n_offsets - below):
+            current = current + offsets[:, below + step : below + step + 1]
+            levels.append(current)
+        return coefficients, torch.cat(levels, dim=1)
+
+
 class SplineHead(nn.Module):
     """Emits cubic B-spline coefficients for the forecast trajectory.
 
@@ -232,6 +325,10 @@ class ForecastOutput:
     appearance: Tensor | None = None  # Ra(t) at collocation points
     #: Learned weight on the mechanistic prior, in (0, 1). Reported.
     prior_gate: float | None = None
+    #: Forecast quantiles at each horizon, ``(B, n_quantiles, n_horizons)``,
+    #: guaranteed non-crossing. The median column equals ``horizons``.
+    quantile_horizons: Tensor | None = None
+    quantiles: tuple[float, ...] = ()
 
     @property
     def insulin_sensitivity(self) -> Tensor:
@@ -247,7 +344,14 @@ class PhysicsGuidedForecaster(nn.Module):
         self.config = config
         self.grid_minutes = config.data.grid_minutes
         self.encoder = GlucoseEncoder(n_features, config)
-        self.spline_head = SplineHead(config.model.d_model, config.model.n_spline_basis)
+        self.quantiles = config.train.quantiles
+        self.median_index = config.median_index
+        self.spline_head = QuantileHead(
+            config.model.d_model,
+            config.model.n_spline_basis,
+            self.quantiles,
+            len(config.data.horizons_min),
+        )
         self.parameter_head = (
             ParameterHead(config.model.d_model) if config.model.per_patient_params else None
         )
@@ -409,7 +513,10 @@ class PhysicsGuidedForecaster(nn.Module):
             params, batch["insulin_rate"], batch["carb_rate"]
         )
 
-        coefficients = self.spline_head(context)
+        # The physics constrains the median trajectory: it is the central estimate the
+        # Bergman equation describes. The band carries predictive uncertainty, which
+        # the ODE says nothing about.
+        coefficients, band_offsets = self.spline_head(context)
         dtype = coefficients.dtype
         insulin_action = insulin_action.to(dtype)
         appearance = appearance.to(dtype)
@@ -449,6 +556,10 @@ class PhysicsGuidedForecaster(nn.Module):
             horizons = learned_horizons
             derivative = learned_derivative
 
+        # The band is centred on the final median forecast, so any prior shift is
+        # inherited automatically and the band width is unaffected by it.
+        quantile_horizons = horizons.unsqueeze(1) + band_offsets.to(dtype)
+
         residual = glucose_residual(
             collocation_glucose, derivative, insulin_action, appearance, params
         ) / residual_scale(params).to(dtype)
@@ -463,7 +574,9 @@ class PhysicsGuidedForecaster(nn.Module):
             mechanistic=mechanistic,
             insulin_action=insulin_action,
             appearance=appearance,
-            prior_gate=float(torch.sigmoid(self.prior_logit)) if self.hybrid else None,
+            prior_gate=float(torch.sigmoid(self.prior_logit).detach()) if self.hybrid else None,
+            quantile_horizons=quantile_horizons,
+            quantiles=self.quantiles,
         )
 
 
@@ -484,6 +597,7 @@ def _finite_difference(values: Tensor, dt: float) -> Tensor:
 
 __all__ = [
     "AttentionPooling",
+    "QuantileHead",
     "ForecastOutput",
     "GlucoseEncoder",
     "ParameterHead",

@@ -51,6 +51,7 @@ class LossBreakdown:
     physics: Tensor
     parameter_prior: Tensor
     temporal: Tensor
+    quantile: Tensor | None = None
     weights: dict[str, float] = field(default_factory=dict)
 
     def items(self) -> dict[str, float]:
@@ -61,6 +62,8 @@ class LossBreakdown:
             "loss_param_prior": float(self.parameter_prior.detach()),
             "loss_temporal": float(self.temporal.detach()),
         }
+        if self.quantile is not None:
+            out["loss_quantile"] = float(self.quantile.detach())
         out.update({f"weight_{key}": value for key, value in self.weights.items()})
         return out
 
@@ -97,6 +100,33 @@ def data_loss(
         raise ValueError(f"unknown data loss {kind!r}")
     weights = horizon_weights(predictions.shape[-1], predictions.device)
     return (elementwise * weights).mean()
+
+
+def pinball_loss(
+    quantile_predictions: Tensor, targets: Tensor, quantiles: tuple[float, ...]
+) -> Tensor:
+    """Quantile (pinball) loss, averaged over quantiles, horizons and batch.
+
+    .. math::
+
+        L_q = \max\big(q\,(y - \hat{y}_q),\ (q - 1)(y - \hat{y}_q)\big)
+
+    This is the proper scoring rule whose minimiser is the ``q``-th conditional
+    quantile, which is exactly what a hypoglycaemia alarm needs: the point forecast
+    stays an unbiased estimate of the centre while the lower quantile answers "how low
+    could this plausibly go".
+
+    Deliberately *not* an asymmetric penalty on the point forecast. That would bias the
+    reported prediction and inflate error-grid zone A, making the safety table depend
+    on the objective. Here the bias lives in a separate, explicitly reported output.
+    """
+    if quantile_predictions.shape[1] != len(quantiles):
+        raise ValueError(
+            f"expected {len(quantiles)} quantiles, got {quantile_predictions.shape[1]}"
+        )
+    levels = quantile_predictions.new_tensor(quantiles).view(1, -1, 1)
+    error = targets.unsqueeze(1) - quantile_predictions
+    return torch.maximum(levels * error, (levels - 1.0) * error).mean()
 
 
 def physics_loss(residual: Tensor) -> Tensor:
@@ -281,7 +311,14 @@ def compute_loss(
         else torch.zeros((), device=data.device, dtype=data.dtype)
     )
 
+    quantile = torch.zeros((), device=data.device, dtype=data.dtype)
+    if output.quantile_horizons is not None and len(output.quantiles) > 1:
+        quantile = pinball_loss(
+            output.quantile_horizons, batch["targets"], output.quantiles
+        )
+
     total, weight_values = weights.combine(data, physics, ramp=ramp)
+    total = total + config.train.lambda_quantile * quantile
 
     prior = torch.zeros((), device=data.device, dtype=data.dtype)
     temporal = torch.zeros((), device=data.device, dtype=data.dtype)
@@ -301,12 +338,14 @@ def compute_loss(
         physics=physics,
         parameter_prior=prior,
         temporal=temporal,
+        quantile=quantile,
         weights=weight_values,
     )
 
 
 __all__ = [
     "AdaptiveWeights",
+    "pinball_loss",
     "LossBreakdown",
     "compute_loss",
     "data_loss",

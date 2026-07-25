@@ -21,39 +21,104 @@ See [DEPLOY.md](DEPLOY.md) for detailed deployment options.
 
 ## Overview
 
-A production-ready digital twin platform that creates a continuously adaptive virtual replica of diabetes patients. Features multi-horizon glucose prediction using Physics-Informed Neural Networks (PINN) trained on real patient data, integrated with an LLM-powered AI assistant.
+Multi-horizon glucose forecasting for type 1 diabetes on the OhioT1DM dataset, with a
+Bergman-minimal-model constraint and a patient-specific insulin-sensitivity estimate.
 
-**Key Capabilities:**
-- 30-120 minute glucose forecasting (Transformer + PINN)
-- LLM-powered conversational AI assistant (Ollama/Llama-3)
-- What-if simulation for meals, insulin, and exercise
-- SHAP-based explainable predictions
-- RAG system with 15+ ADA medical guidelines
-- Automatic drift detection and model retraining
+> **Correction notice.** An earlier version of this README reported model performance
+> that was not reproducible. Those numbers came from a pipeline whose forecast horizons
+> were mislabelled (rows with missing CGM were dropped before windows were sliced, so a
+> value labelled "+30 min" was not 30 minutes ahead), whose Clarke error grid could not
+> assign zone E, and which reported no naive baseline — both of its headline figures
+> (30.4 and 78.5 mg/dL RMSE at 30 min) were in fact **worse than predicting no change**.
+> It also described the model as a Physics-Informed Neural Network while every script
+> that produced a checkpoint passed `use_pinn=False`, so no reported result came from a
+> PINN. The pipeline has been rebuilt and re-measured. See
+> [`docs/RESULTS.md`](docs/RESULTS.md) and [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md).
+
+**What is measured now** (research pipeline, `twin/`):
+
+- 30–120 minute forecasting with a **genuinely Bergman-constrained** trajectory: all
+  three states integrated, exact matrix-exponential propagation, analytic `dG/dt` from
+  a cubic B-spline head.
+- **Patient-specific insulin sensitivity** `S_I`, validated against pre-registered
+  falsification criteria.
+- Two split protocols: the official OhioT1DM temporal holdout and leave-one-subject-out.
+- 234 tests, each named for a specific defect it guards against.
+
+**Not part of the research claims:** the FastAPI/Next.js application, the LLM
+assistant, and the RAG layer under `src/`. They are retained as an application but are
+out of scope, unverified, and produce no reported number. The RAG corpus is
+author-paraphrased text, not ingested clinical guidelines.
 
 ## Model Performance
 
-Two training regimes evaluated. Real-world numbers are on the **OhioT1DM test set** (9 patients, 10,302 sequences).
+OhioT1DM, 12 subjects, 26,498 gap-strict test windows. Metrics computed **per subject,
+then reported as mean ± SD across subjects**. Every number is regenerated from stored
+predictions by `python -m twin.eval.results_doc`.
 
-### In-silico (UVA/Padova ODE simulation — 30 virtual patients)
+### Official protocol — temporal holdout (personalised)
 
-| Horizon | RMSE | MAE | R² | Clarke A% |
-|---------|------|-----|----|-----------|
-| 30 min  | 10.9 mg/dL | 5.0 mg/dL | 0.989 | 99.4% |
-| 60 min  | 22.7 mg/dL | 10.0 mg/dL | 0.953 | 95.2% |
-| 90 min  | 33.8 mg/dL | 16.1 mg/dL | 0.897 | 88.1% |
-| 120 min | 43.4 mg/dL | 21.9 mg/dL | 0.830 | 82.2% |
+The test files are the *same* subjects over the next ~10 days. This is what every
+published OhioT1DM number uses. It is **not** cross-subject generalisation.
 
-### Real-world — OhioT1DM (simulation pre-trained, fine-tuned on 12 real patients)
+| Horizon | Persistence MAE | Model MAE | Persistence RMSE | Model RMSE | Skill |
+|---------|-----------------|-----------|------------------|------------|-------|
+| 30 min  | 16.87 | **13.25** | 23.37 | **19.06** | 18.4% |
+| 60 min  | 28.22 | **22.29** | 38.15 | **30.89** | 19.0% |
+| 90 min  | 36.55 | **28.77** | 48.69 | **39.04** | 19.8% |
+| 120 min | 42.90 | **33.38** | 56.43 | **44.78** | 20.7% |
 
-| Horizon | RMSE | MAE | R² | Clarke A% |
-|---------|------|-----|----|-----------|
-| 30 min  | **30.4 mg/dL** | **22.2 mg/dL** | **0.768** | **85.8%** |
-| 60 min  | 40.2 mg/dL | 30.1 mg/dL | 0.595 | 78.2% |
-| 90 min  | 48.2 mg/dL | 36.9 mg/dL | 0.415 | 71.4% |
-| 120 min | 53.3 mg/dL | 41.6 mg/dL | 0.281 | 67.3% |
+### Leave-one-subject-out — subject-disjoint
 
-Zero D/E zone Clarke predictions at any horizon. See [full results →](docs/RESULTS.md)
+No data at all from the test subject. Both protocols score the identical windows, so
+the difference isolates the value of subject-specific history.
+
+| Horizon | LOSO MAE | Personalisation gap |
+|---------|----------|---------------------|
+| 30 min  | **14.66** | +1.41 |
+| 60 min  | **24.85** | +2.56 |
+| 120 min | **37.56** | +4.18 |
+
+### What this does not claim
+
+- **Not state of the art.** Best credible published 30-min MAE on OhioT1DM is
+  12.83 mg/dL.
+- **`MAE < 15` is not an achievement.** It is the field median — 15 of 17 published
+  entries clear it, including a *non-personalised* LSTM at 14.37 — and persistence
+  alone reaches 16.36.
+- **No citable "clinically acceptable" MAE threshold exists for forecasting.** The
+  15 mg/dL figure derives from ISO 15197:2013, a per-reading meter tolerance below
+  100 mg/dL measuring the *present*.
+- **The physics does not significantly improve accuracy.** No ablation arm beats the
+  no-physics baseline after Holm correction. Its value here is a stable
+  patient-specific parameter at no accuracy cost.
+- **Not clinically deployable.** Hypoglycaemia detection is at or below persistence;
+  around 89% Clarke zone A coexists with roughly half of hypoglycaemic events
+  undetected. Clarke zone A is not a safety metric.
+
+Persistence is validated against two independently published values to within
+0.3 mg/dL, which checks parsing, sequencing, horizon integrity and metrics together.
+
+## Research pipeline
+
+```bash
+python -m twin --config configs/official-small.yaml data       # window accounting
+python -m twin --config configs/official-small.yaml baselines  # persistence, ROC, ARIMA
+python -m twin --config configs/official-small.yaml train
+python -m twin --config configs/official-small.yaml ablate     # A0-A7
+python -m twin --config configs/official-small.yaml report     # figures and tables
+python -m twin.eval.results_doc                                # regenerate RESULTS.md
+```
+
+Each stage writes a manifest with the git commit, resolved config, SHA-256 of every
+input file, package versions and hardware. Key documents:
+
+| File | Contents |
+|---|---|
+| [`docs/RESULTS.md`](docs/RESULTS.md) | All results, generated from artifacts |
+| [`docs/METHODOLOGY.md`](docs/METHODOLOGY.md) | Every equation, derivation and citation |
+| [`docs/PREREGISTRATION.md`](docs/PREREGISTRATION.md) | Outcomes and falsification criteria, fixed in advance |
+| [`docs/CITATIONS.md`](docs/CITATIONS.md) | Verified sources, with what could not be verified |
 
 ## Quick Start
 

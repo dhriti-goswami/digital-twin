@@ -152,9 +152,34 @@ class TrainConfig:
     #: Huber is robust to CGM artifacts in a way MSE is not.
     data_loss: str = "huber"
     huber_delta: float = 10.0  # mg/dL
+    #: Quantiles the head predicts. The median is the reported point forecast; the
+    #: lower quantile provides a hypoglycaemia alarm without biasing it.
+    #:
+    #: A point forecast trained on a mean-seeking loss systematically regresses
+    #: toward the centre -- measured here at +7.29 mg/dL below 70 mg/dL even with no
+    #: physics at all -- so it understates hypoglycaemia risk by construction. The
+    #: fix is distributional rather than a tilt in the objective: predict the lower
+    #: tail explicitly and alarm on it, leaving the point forecast unbiased.
+    quantiles: tuple[float, ...] = (0.1, 0.5, 0.9)
+    #: Weight on the pinball loss relative to the point loss.
+    lambda_quantile: float = 1.0
     #: Deliberately absent: any hypo/hyper asymmetric penalty. An asymmetric
     #: training loss inflates error-grid zone A by construction. Clinical
     #: safety is reported through the error grids, not baked into the loss.
+
+
+def _validate_quantiles(values: tuple[float, ...]) -> None:
+    if not values:
+        raise ConfigError("train.quantiles must not be empty")
+    if sorted(values) != list(values):
+        raise ConfigError(f"train.quantiles must be ascending, got {values}")
+    if any(not 0.0 < q < 1.0 for q in values):
+        raise ConfigError(f"train.quantiles must lie in (0, 1), got {values}")
+    if 0.5 not in values:
+        raise ConfigError(
+            f"train.quantiles must include 0.5: the median is the reported point "
+            f"forecast and the physics constrains it. Got {values}"
+        )
 
 
 @dataclass
@@ -193,6 +218,14 @@ class Config:
             yaml.safe_dump(self.to_dict(), handle, sort_keys=False)
 
     # -- derived ------------------------------------------------------------ #
+
+    def __post_init__(self) -> None:
+        self.train.quantiles = tuple(float(q) for q in self.train.quantiles)
+        _validate_quantiles(self.train.quantiles)
+
+    @property
+    def median_index(self) -> int:
+        return self.train.quantiles.index(0.5)
 
     def resolve_device(self) -> str:
         if self.run.device != "auto":

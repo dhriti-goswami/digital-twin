@@ -323,3 +323,116 @@ def test_selection_start_accounts_for_disabled_physics():
     with pytest.raises((AttributeError, TypeError)):
         # Fails later on the None loaders, proving it got past the eligibility check.
         train_model(None, None, None, config, scaler=None, fold_name="t")  # type: ignore[arg-type]
+
+
+def test_quantiles_cannot_cross_at_any_input_scale():
+    """Quantile ordering must hold by construction, not by penalty.
+
+    A crossed quantile makes the lower band meaningless exactly where it is needed --
+    in the hypoglycaemic tail -- so ordering is enforced through softplus accumulation
+    rather than hoped for.
+    """
+    import torch
+
+    from twin.data.features import N_FEATURES
+    from twin.models.forecaster import PhysicsGuidedForecaster
+
+    config = Config.from_dict({"model": {"d_model": 32, "n_layers": 1, "n_heads": 2, "d_ff": 64}})
+    model = PhysicsGuidedForecaster(N_FEATURES, config)
+    batch_size = 16
+    for scale in (1e-3, 1.0, 1e4):
+        batch = {
+            "features": torch.randn(batch_size, config.data.seq_len, N_FEATURES) * scale,
+            "targets": torch.rand(batch_size, 4) * 100 + 100,
+            "anchor_glucose": torch.rand(batch_size) * 100 + 100,
+            "insulin_rate": torch.rand(batch_size, 169) * 0.03,
+            "carb_rate": torch.zeros(batch_size, 169),
+            "subject_index": torch.zeros(batch_size, dtype=torch.long),
+            "basal_glucose": torch.full((batch_size,), 120.0),
+            "body_weight_kg": torch.full((batch_size,), 70.0),
+            "basal_insulin_rate": torch.full((batch_size,), 0.02),
+        }
+        out = model(batch)
+        assert (torch.diff(out.quantile_horizons, dim=1) >= 0).all(), f"crossed at {scale}"
+
+
+def test_median_quantile_equals_the_point_forecast():
+    """The reported point forecast must BE the median column, not merely near it."""
+    import torch
+
+    from twin.data.features import N_FEATURES
+    from twin.models.forecaster import PhysicsGuidedForecaster
+
+    config = Config.from_dict({"model": {"d_model": 32, "n_layers": 1, "n_heads": 2, "d_ff": 64}})
+    model = PhysicsGuidedForecaster(N_FEATURES, config)
+    batch_size = 8
+    batch = {
+        "features": torch.randn(batch_size, config.data.seq_len, N_FEATURES),
+        "targets": torch.rand(batch_size, 4) * 100 + 100,
+        "anchor_glucose": torch.rand(batch_size) * 100 + 100,
+        "insulin_rate": torch.rand(batch_size, 169) * 0.03,
+        "carb_rate": torch.zeros(batch_size, 169),
+        "subject_index": torch.zeros(batch_size, dtype=torch.long),
+        "basal_glucose": torch.full((batch_size,), 120.0),
+        "body_weight_kg": torch.full((batch_size,), 70.0),
+        "basal_insulin_rate": torch.full((batch_size,), 0.02),
+    }
+    out = model(batch)
+    assert torch.allclose(out.quantile_horizons[:, config.median_index], out.horizons, atol=1e-5)
+
+
+def test_quantile_band_has_nonzero_width():
+    """Regression guard for a real bug.
+
+    A first design put the quantile offsets in spline-coefficient space. Cubic
+    B-splines form a partition of unity, so adding a constant to every coefficient
+    leaves the anchored trajectory unchanged -- the band came out exactly zero wide.
+    The offsets are now applied in glucose units at each horizon.
+    """
+    import torch
+
+    from twin.data.features import N_FEATURES
+    from twin.models.forecaster import PhysicsGuidedForecaster
+
+    config = Config.from_dict({"model": {"d_model": 32, "n_layers": 1, "n_heads": 2, "d_ff": 64}})
+    model = PhysicsGuidedForecaster(N_FEATURES, config)
+    batch_size = 8
+    batch = {
+        "features": torch.randn(batch_size, config.data.seq_len, N_FEATURES),
+        "targets": torch.rand(batch_size, 4) * 100 + 100,
+        "anchor_glucose": torch.rand(batch_size) * 100 + 100,
+        "insulin_rate": torch.rand(batch_size, 169) * 0.03,
+        "carb_rate": torch.zeros(batch_size, 169),
+        "subject_index": torch.zeros(batch_size, dtype=torch.long),
+        "basal_glucose": torch.full((batch_size,), 120.0),
+        "body_weight_kg": torch.full((batch_size,), 70.0),
+        "basal_insulin_rate": torch.full((batch_size,), 0.02),
+    }
+    out = model(batch)
+    width = out.quantile_horizons[:, -1] - out.quantile_horizons[:, 0]
+    assert (width > 1.0).all(), f"band collapsed: widths {width.mean(0).tolist()}"
+
+
+def test_pinball_loss_minimiser_is_the_quantile():
+    """The pinball loss must be a proper scoring rule for the quantile it names."""
+    import torch
+
+    from twin.train.loss import pinball_loss
+
+    torch.manual_seed(0)
+    sample = torch.randn(20_000, 1) * 30 + 150
+    for level in (0.1, 0.5, 0.9):
+        candidates = torch.arange(80.0, 220.0, 0.5)
+        losses = [
+            float(pinball_loss(candidate.expand(20_000, 1, 1), sample, (level,)))
+            for candidate in candidates
+        ]
+        argmin = float(candidates[int(torch.tensor(losses).argmin())])
+        empirical = float(torch.quantile(sample, level))
+        assert abs(argmin - empirical) < 1.0, f"q={level}: {argmin} vs {empirical}"
+
+
+def test_quantiles_must_include_the_median():
+    """The median is the reported forecast and what the physics constrains."""
+    with pytest.raises(ConfigError, match="must include 0.5"):
+        Config.from_dict({"train": {"quantiles": [0.1, 0.9]}})

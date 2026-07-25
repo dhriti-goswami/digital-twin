@@ -91,6 +91,7 @@ def predict_loader(
     targets: list[np.ndarray] = []
     sensitivity: list[np.ndarray] = []
     subjects: list[np.ndarray] = []
+    quantiles: list[np.ndarray] = []
 
     for batch in loader:
         batch = _to_device(batch, device)
@@ -99,13 +100,21 @@ def predict_loader(
         targets.append(batch["targets"].float().cpu().numpy())
         sensitivity.append(output.insulin_sensitivity.float().cpu().numpy())
         subjects.append(batch["subject_index"].cpu().numpy())
+        if output.quantile_horizons is not None:
+            quantiles.append(output.quantile_horizons.float().cpu().numpy())
 
-    return {
+    out = {
         "predictions": np.concatenate(predictions, axis=0),
         "targets": np.concatenate(targets, axis=0),
         "insulin_sensitivity": np.concatenate(sensitivity, axis=0),
         "subject_index": np.concatenate(subjects, axis=0),
     }
+    if quantiles:
+        # Retained so the hypoglycaemia alarm can be evaluated at any operating point
+        # without re-running the model.
+        out["quantile_predictions"] = np.concatenate(quantiles, axis=0)
+        out["quantile_levels"] = np.asarray(model.quantiles, dtype=np.float64)
+    return out
 
 
 def train_model(
