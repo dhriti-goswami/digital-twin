@@ -31,7 +31,7 @@ from twin.data.features import (
     build_features,
     feature_provenance,
 )
-from twin.data.ohio import load_subject
+from twin.data.ohio import discover_files, load_subject
 from twin.data.sequencing import build_windows, interpolate_bounded
 from twin.data.splits import official_split, verify_no_leakage
 
@@ -386,7 +386,13 @@ def test_dataset_batches_have_the_declared_shapes():
     batch = next(iter(build_loader(dataset, conf, shuffle=False)))
     assert batch["features"].shape == (conf.train.batch_size, conf.data.seq_len, N_FEATURES)
     assert batch["targets"].shape == (conf.train.batch_size, len(conf.data.horizons_min))
-    assert batch["insulin_rate"].shape[1] == conf.data.max_horizon_steps + 1
+    # Burn-in plus the forecast interval plus the anchor slot: the physics needs
+    # enough insulin history for the mechanistic state to be settled at the anchor.
+    from twin.data.dataset import PHYSICS_BURNIN_STEPS
+
+    assert batch["insulin_rate"].shape[1] == (
+        PHYSICS_BURNIN_STEPS + conf.data.max_horizon_steps + 1
+    )
     assert batch["carb_rate"].shape == batch["insulin_rate"].shape
     assert torch.isfinite(batch["features"]).all()
     assert torch.isfinite(batch["targets"]).all()
@@ -429,3 +435,55 @@ def test_build_dataset_rejects_unknown_part():
     )
     with pytest.raises(ValueError, match="train/val/test"):
         build_dataset(Fold(name="t", protocol="official"), "bogus", {}, scaler, config())
+
+
+def test_corpus_cache_key_includes_pipeline_source():
+    """Editing a parser or feature definition must invalidate the cache.
+
+    Without this the cache key covers only config and data checksums, so a code
+    change leaves a stale pickle that silently supplies objects built by different
+    logic -- including ones missing fields the new code expects.
+    """
+    from twin.data.dataset import _pipeline_source_digest
+
+    digest = _pipeline_source_digest()
+    assert isinstance(digest, str) and len(digest) == 16
+    assert _pipeline_source_digest() == digest, "digest must be stable within a version"
+
+
+@needs_ohio
+@pytest.mark.slow
+def test_wizard_boluses_give_an_independent_carb_ratio():
+    """Bolus-wizard entries must yield a carbohydrate ratio that varies by subject.
+
+    This is the external signal the insulin-sensitivity validation correlates
+    against: it comes from the pump's own record of what the user entered, so it is
+    independent of the CGM trace and of anything the model sees.
+    """
+    from twin.data.ohio import discover_files, load_subject
+
+    ratios = {}
+    for path in discover_files(OHIO_ROOT, split="train"):
+        subject = load_subject(path)
+        wizard = subject.wizard_boluses
+        usable = wizard[(wizard["dose"] > 0) & (wizard["bwz_carb_input"] > 0)]
+        if len(usable) >= 5:
+            ratios[subject.subject_id] = float(
+                np.median(usable["bwz_carb_input"] / usable["dose"])
+            )
+
+    # DATA LIMITATION: bolus-wizard carbohydrate entries exist only for the 2018
+    # cohort. All six 2018 subjects carry 111-176 usable records; all six 2020
+    # subjects carry none. The carbohydrate-ratio correlation is therefore n=6 and
+    # 2018-only, which makes it exploratory rather than confirmatory -- Spearman on
+    # six points needs |rho| > 0.83 to reach p < 0.05. Asserted here so the
+    # limitation cannot be forgotten when the result is written up.
+    from twin.data.ohio import COHORT_SUBJECTS
+
+    assert set(ratios) == set(COHORT_SUBJECTS["2018"]), (
+        f"expected wizard records for the 2018 cohort only, got {sorted(ratios)}"
+    )
+    values = np.array(list(ratios.values()))
+    # Physiologically plausible carbohydrate ratios, and genuinely varying.
+    assert (values > 2.0).all() and (values < 40.0).all(), ratios
+    assert values.max() / values.min() > 2.0, "carb ratio should differ across subjects"

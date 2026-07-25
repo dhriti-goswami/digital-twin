@@ -69,6 +69,10 @@ class SubjectData:
     def split(self) -> str:
         return self.subject.split
 
+    def subject_wizard_boluses(self) -> pd.DataFrame:
+        """Bolus-wizard records, for the empirical carbohydrate ratio."""
+        return self.subject.wizard_boluses
+
     def anchor_glucose(self) -> Array:
         """Glucose at each window's anchor -- the persistence prediction."""
         return persistence_targets(self.subject, self.windows, frame=self.frame)
@@ -116,6 +120,11 @@ def load_corpus(
         "data": config.data.to_dict() if hasattr(config.data, "to_dict") else str(config.data),
         "feature_names": list(FEATURE_NAMES),
         "files": {path: sha256_file(path)[:16] for split in paths for path in paths[split]},
+        # The code that builds the cache is part of the key. Without this, editing a
+        # parser or feature definition leaves a stale pickle that silently supplies
+        # objects built by different logic -- including ones missing fields the new
+        # code expects.
+        "code": _pipeline_source_digest(),
     }
     digest = hashlib.sha256(
         json.dumps(key_material, sort_keys=True, default=str).encode()
@@ -131,6 +140,22 @@ def load_corpus(
     with cache_path.open("wb") as handle:
         pickle.dump(corpus, handle, protocol=pickle.HIGHEST_PROTOCOL)
     return corpus
+
+
+def _pipeline_source_digest() -> str:
+    """Hash the source of every module whose output the cache stores.
+
+    Cheap, and it makes a stale cache impossible rather than merely unlikely.
+    """
+    import twin.data.features as features_module
+    import twin.data.ohio as ohio_module
+    import twin.data.sequencing as sequencing_module
+
+    digest = hashlib.sha256()
+    for module in (ohio_module, sequencing_module, features_module):
+        path = Path(module.__file__)
+        digest.update(path.read_bytes())
+    return digest.hexdigest()[:16]
 
 
 def _load_corpus_uncached(config: Config) -> dict[str, dict[str, SubjectData]]:
@@ -259,6 +284,8 @@ class WindowBatchSource:
     horizon_steps: tuple[int, ...]
     #: Observable basal glucose for this subject, resolved leakage-free per fold.
     basal_glucose: float = 120.0
+    #: Median scheduled basal insulin rate [U/min], likewise leakage-free.
+    basal_insulin_rate: float = 0.02
     body_weight_kg: float = 70.0
     #: Offset applied to an anchor to index into the padded rate arrays.
     pad_offset: int = PHYSICS_BURNIN_STEPS
@@ -317,6 +344,7 @@ class WindowDataset(Dataset):
             # short-circuit.
             "subject_index": torch.tensor(source_index, dtype=torch.long),
             "basal_glucose": torch.tensor(source.basal_glucose, dtype=torch.float32),
+            "basal_insulin_rate": torch.tensor(source.basal_insulin_rate, dtype=torch.float32),
             "body_weight_kg": torch.tensor(source.body_weight_kg, dtype=torch.float32),
         }
 
@@ -339,6 +367,41 @@ def fasting_glucose(data: SubjectData) -> float:
         frame[FILLED_COLUMN].median()
     )
     return value
+
+
+def basal_insulin_rate(data: SubjectData) -> float:
+    """Median scheduled basal rate [U/min] over the record.
+
+    A *robust* summary, not an instantaneous value. Deriving ``I_b`` from the
+    insulin rate at a single grid slot is wrong twice over: that slot carries
+    basal **plus** any bolus delivered then, and for an anchor near the start of a
+    record the burn-in is zero-padded so the slot is empty. Either way ``I_b``
+    stops matching the true basal level, ``X`` is driven far from zero at basal,
+    and a net glucose disposal rate ``p1 + X < 0`` makes the glucose ODE diverge.
+    """
+    basal = data.frame["basal_u_per_min"].to_numpy(dtype=np.float64)
+    positive = basal[basal > 0]
+    return float(np.median(positive)) if positive.size else 0.0
+
+
+def resolve_basal_insulin_rate(
+    fold: Fold, corpus: dict[str, dict[str, SubjectData]]
+) -> dict[str, float]:
+    """Per-subject basal rate, resolved leakage-free exactly as ``G_b`` is."""
+    training_values = {
+        selection.subject_id: basal_insulin_rate(corpus["train"][selection.subject_id])
+        for selection in fold.train
+    }
+    if not training_values:
+        raise ValueError(f"{fold.name}: no training subjects to estimate a basal rate from")
+    population = float(np.mean(list(training_values.values())))
+
+    resolved = dict(training_values)
+    if fold.protocol == "loso" and fold.held_out_subject is not None:
+        resolved[fold.held_out_subject] = population
+    for subject_id in corpus["test"]:
+        resolved.setdefault(subject_id, population)
+    return resolved
 
 
 def resolve_basal_glucose(
@@ -391,6 +454,7 @@ def build_dataset(
     # across the whole horizon.
     physics_span = config.data.max_horizon_steps
     basal_glucose = resolve_basal_glucose(fold, corpus)
+    basal_rate = resolve_basal_insulin_rate(fold, corpus)
 
     sources: list[WindowBatchSource] = []
     for selection in selections:
@@ -429,6 +493,7 @@ def build_dataset(
                 carb_rate=carbs.astype(np.float32),
                 horizon_steps=data.windows.horizon_steps,
                 basal_glucose=float(basal_glucose[selection.subject_id]),
+                basal_insulin_rate=float(basal_rate[selection.subject_id]),
                 body_weight_kg=float(data.subject.body_weight_kg),
             )
         )
@@ -483,5 +548,6 @@ __all__ = [
     "collect_predictions",
     "fit_scaler",
     "load_corpus",
+    "resolve_basal_insulin_rate",
     "load_subject_data",
 ]

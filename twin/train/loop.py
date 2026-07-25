@@ -120,6 +120,20 @@ def train_model(
     verbose: bool = True,
 ) -> TrainingResult:
     """Train one model, selecting on purged validation MAE at 30 minutes."""
+    # Checked before any work: a config whose curriculum outlasts its epoch budget
+    # would train to completion and then select nothing.
+    selection_starts_at = 1 + max(
+        config.physics.param_warmup_epochs,
+        config.physics.ramp_end_epoch if config.physics.enabled else 0,
+    )
+    if selection_starts_at > config.train.epochs:
+        raise ValueError(
+            f"epochs={config.train.epochs} is too few: the curriculum "
+            f"(warmup {config.physics.param_warmup_epochs}, ramp to "
+            f"{config.physics.ramp_end_epoch}) does not finish until epoch "
+            f"{selection_starts_at}, so no epoch would be eligible for selection"
+        )
+
     device = config.resolve_device()
     model = model.to(device)
     weights = AdaptiveWeights(config).to(device)
@@ -183,6 +197,26 @@ def train_model(
                 f"{record.seconds:.1f}s",
                 flush=True,
             )
+
+        # Model selection only begins once the objective has stopped changing.
+        #
+        # During the parameter warmup the network optimises with frozen population
+        # parameters, and during the physics ramp the weight on the residual is still
+        # rising -- so a validation score from epoch 3 was produced by a different
+        # objective than one from epoch 30, and they are not comparable. Selecting
+        # across them picks whichever epoch had the *easiest* objective, which is
+        # always an early one: in a first run the best-so-far was epoch 1, and
+        # early stopping would have fired at epoch 14, before the physics ramp
+        # finished. The run would have reported a warmup checkpoint and measured
+        # nothing about the physics at all.
+        if epoch < selection_starts_at:
+            if verbose and epoch == 1:
+                print(
+                    f"  (selection and early stopping begin at epoch "
+                    f"{selection_starts_at}, once the curriculum is complete)",
+                    flush=True,
+                )
+            continue
 
         if val_mae_30 < best_val - 1e-4:
             best_val = val_mae_30

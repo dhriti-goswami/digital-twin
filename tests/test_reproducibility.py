@@ -250,3 +250,76 @@ def test_package_versions_include_core_stack():
     versions = package_versions()
     assert versions["torch"] != "not-installed"
     assert versions["numpy"] != "not-installed"
+
+
+def test_zero_physics_ramp_cannot_propagate_nan():
+    """During the data-first warmup the physics term must be inert, not scaled.
+
+    A non-finite residual multiplied by a zero ramp is still NaN, which poisons the
+    whole objective. This is how a training run went to NaN on epoch 1 even though
+    the physics weight was supposed to be zero.
+    """
+    import torch
+
+    from twin.train.loss import AdaptiveWeights
+
+    config = Config.from_dict({"physics": {"weighting": "kendall"}})
+    weights = AdaptiveWeights(config)
+    data = torch.tensor(1.0)
+    poisoned = torch.tensor(float("nan"))
+
+    total, _ = weights.combine(data, poisoned, ramp=0.0)
+    assert torch.isfinite(total), "zero ramp must drop the physics term entirely"
+
+    total, _ = weights.combine(data, poisoned, ramp=1.0)
+    assert torch.isnan(total), "a real NaN residual must still surface when active"
+
+
+def test_fixed_weighting_also_guards_the_zero_ramp():
+    import torch
+
+    from twin.train.loss import AdaptiveWeights
+
+    config = Config.from_dict({"physics": {"weighting": "fixed", "lambda_phys": 0.1}})
+    weights = AdaptiveWeights(config)
+    total, _ = weights.combine(torch.tensor(1.0), torch.tensor(float("nan")), ramp=0.0)
+    assert torch.isfinite(total)
+
+
+def test_selection_waits_for_the_curriculum_to_finish():
+    """Validation scores from different objectives must not be compared.
+
+    During the parameter warmup and the physics ramp the objective is still
+    changing, so an early epoch's validation score is not comparable to a later
+    one's. Selecting across them always picks an early epoch -- in a first run the
+    best-so-far was epoch 1 and early stopping would have fired at epoch 14, before
+    the physics ramp finished, reporting a warmup checkpoint.
+    """
+    from twin.train.loop import train_model
+
+    config = Config.from_dict(
+        {
+            "train": {"epochs": 8},
+            "physics": {"param_warmup_epochs": 10, "ramp_end_epoch": 25},
+        }
+    )
+    with pytest.raises(ValueError, match="does not finish until epoch"):
+        train_model(None, None, None, config, scaler=None, fold_name="t")  # type: ignore[arg-type]
+
+
+def test_selection_start_accounts_for_disabled_physics():
+    """With physics off, only the parameter warmup gates selection."""
+    config = Config.from_dict(
+        {
+            "train": {"epochs": 12},
+            "physics": {"enabled": False, "param_warmup_epochs": 5, "ramp_end_epoch": 25},
+        }
+    )
+    expected = 1 + max(config.physics.param_warmup_epochs, 0)
+    assert expected == 6
+    # Must not raise: the ramp is irrelevant when physics is disabled.
+    from twin.train.loop import train_model
+
+    with pytest.raises((AttributeError, TypeError)):
+        # Fails later on the None loaders, proving it got past the eligibility check.
+        train_model(None, None, None, config, scaler=None, fold_name="t")  # type: ignore[arg-type]

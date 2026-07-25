@@ -355,12 +355,15 @@ class PhysicsGuidedForecaster(nn.Module):
         carbs = carb_rate.to(dtype)
         grid = float(self.grid_minutes)
 
+        # Initial condition is the steady state of the subject's own basal rate,
+        # matching the I_b used for the parameters so basal is a true equilibrium.
+        basal_rate = (params.I_b * params.V_I * params.n) / 1000.0
         anchor_state = advance_compartments(
             params,
             insulin[:, :PHYSICS_BURNIN_STEPS],
             carbs[:, :PHYSICS_BURNIN_STEPS],
             dt=grid,
-            x0=basal_steady_state(params, insulin[:, 0]),
+            x0=basal_steady_state(params, basal_rate),
         )
         trajectory = simulate_compartments(
             params,
@@ -396,7 +399,10 @@ class PhysicsGuidedForecaster(nn.Module):
             context,
             basal_glucose=batch["basal_glucose"],
             body_weight_kg=batch["body_weight_kg"],
-            basal_insulin_rate=batch["insulin_rate"][:, 0],
+            # The subject's robust median basal rate, not the rate at one slot: that
+            # slot carries basal plus any bolus delivered then, and is zero for an
+            # anchor whose burn-in is padded.
+            basal_insulin_rate=batch["basal_insulin_rate"],
             use_population=use_population_params,
         )
         insulin_action, appearance = self.mechanistic_state(

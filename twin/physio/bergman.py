@@ -43,6 +43,25 @@ from twin.physio.params import PatientParams
 _SMALL = 1e-8
 
 
+def effective_disposal(X: Tensor, params: PatientParams) -> Tensor:
+    """Net fractional glucose disposal rate ``p1 + X``, floored at zero.
+
+    Remote insulin action is non-negative by definition: insulin cannot act in
+    reverse. A reduced or suspended basal drops plasma insulin below ``I_b``, which
+    makes the linear ``X`` state briefly negative, and if ``p1 + X < 0`` the glucose
+    equation becomes ``dG/dt = +|k| G`` -- exponential divergence. Over a 121-point
+    collocation grid that overflows to NaN, which is exactly how a training run was
+    first observed to fail.
+
+    Flooring at zero is the physiologically correct constraint, not a numerical
+    patch: it says insulin action cannot fall below none at all. Endogenous glucose
+    production above basal, the real mechanism behind a rise during a basal
+    reduction, is represented by the ``p1 * G_b`` term rather than by negative
+    insulin action.
+    """
+    return (params.p1.unsqueeze(-1) + X).clamp(min=0.0)
+
+
 def _one_minus_exp_over(x: Tensor) -> Tensor:
     """``(1 - exp(-x)) / x``, numerically stable including at ``x = 0``.
 
@@ -77,7 +96,7 @@ def glucose_residual(
     """
     p1 = params.p1.unsqueeze(-1)
     G_b = params.G_b.unsqueeze(-1)
-    return dG_dt + (p1 + X) * G - p1 * G_b - Ra_mgdl_per_min
+    return dG_dt + effective_disposal(X, params) * G - p1 * G_b - Ra_mgdl_per_min
 
 
 def residual_scale(params: PatientParams) -> Tensor:
@@ -140,7 +159,7 @@ def integrate_glucose(
     p1 = params.p1.unsqueeze(-1)
     G_b = params.G_b.unsqueeze(-1)
 
-    k = p1 + X  # (B, T)
+    k = effective_disposal(X, params)  # (B, T), floored at zero
     c = p1 * G_b + Ra_mgdl_per_min  # (B, T)
 
     # Step-averaged coefficients: element t governs the interval [t, t+1).
@@ -180,6 +199,7 @@ def insulin_sensitivity(params: PatientParams) -> Tensor:
 
 
 __all__ = [
+    "effective_disposal",
     "glucose_residual",
     "insulin_sensitivity",
     "integrate_glucose",

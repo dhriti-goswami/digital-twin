@@ -655,3 +655,39 @@ def test_chunked_advance_matches_sequential_scan():
             params, u_ins, u_carb, dt=5.0, x0=x0, chunk_size=chunk_size
         )
         assert torch.allclose(chunked, sequential, atol=1e-9), f"chunk_size={chunk_size}"
+
+
+def test_negative_insulin_action_cannot_destabilise_glucose():
+    """``p1 + X < 0`` must be floored, or the glucose ODE diverges.
+
+    A reduced or suspended basal drops plasma insulin below ``I_b``, making the
+    linear ``X`` state briefly negative. If the net disposal rate goes negative the
+    equation becomes ``dG/dt = +|k| G``, which over a 121-point collocation grid
+    overflows to NaN -- this is how the first training run failed at epoch 1.
+    Remote insulin action is non-negative by definition, so flooring is the
+    physiologically correct constraint.
+    """
+    from twin.physio.bergman import effective_disposal
+
+    steps = 121
+    params = population_params(batch_size=1, dtype=DTYPE)
+    # Strongly negative X, as a large basal reduction would produce.
+    X = torch.full((1, steps), -0.05, dtype=DTYPE)
+    Ra = torch.zeros(1, steps, dtype=DTYPE)
+
+    assert (effective_disposal(X, params) >= 0).all()
+
+    G = integrate_glucose(torch.tensor([250.0], dtype=DTYPE), X, Ra, params, dt=DT)
+    assert torch.isfinite(G).all(), "glucose diverged under negative insulin action"
+    # With disposal floored to zero and no meal, glucose can only rise via p1*G_b,
+    # so it stays bounded.
+    assert G.max() < 1e4
+
+
+def test_effective_disposal_leaves_positive_action_untouched():
+    params = population_params(batch_size=1, dtype=DTYPE)
+    from twin.physio.bergman import effective_disposal
+
+    X = torch.full((1, 5), 0.01, dtype=DTYPE)
+    expected = params.p1.unsqueeze(-1) + X
+    assert torch.allclose(effective_disposal(X, params), expected)

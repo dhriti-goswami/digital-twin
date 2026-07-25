@@ -470,6 +470,11 @@ class GriddedSubject:
     available_sensors: tuple[str, ...]
     excluded_warmup_samples: int
     source_path: Path
+    #: Bolus-wizard records (dose plus the carbohydrate the user entered). Retained
+    #: because they give an empirical carbohydrate ratio that is independent of the
+    #: CGM trace, and therefore an external check on the estimated insulin
+    #: sensitivity.
+    wizard_boluses: pd.DataFrame = field(default_factory=pd.DataFrame)
 
     @property
     def n_slots(self) -> int:
@@ -550,6 +555,17 @@ def to_grid(subject: OhioSubject, *, grid_minutes: int = 5) -> pd.DataFrame:
     return frame
 
 
+def _wizard_boluses(subject: OhioSubject) -> pd.DataFrame:
+    """Bolus events carrying both a dose and a bolus-wizard carbohydrate entry."""
+    frame = subject.bolus
+    if frame.empty or "dose" not in frame or "bwz_carb_input" not in frame:
+        return pd.DataFrame(columns=["ts_begin", "dose", "bwz_carb_input"])
+    usable = frame[["ts_begin", "dose", "bwz_carb_input"]].copy()
+    usable["dose"] = pd.to_numeric(usable["dose"], errors="coerce")
+    usable["bwz_carb_input"] = pd.to_numeric(usable["bwz_carb_input"], errors="coerce")
+    return usable.dropna(subset=["dose", "bwz_carb_input"]).reset_index(drop=True)
+
+
 def load_subject(
     path: str | Path,
     *,
@@ -582,6 +598,7 @@ def load_subject(
         available_sensors=subject.available_sensors,
         excluded_warmup_samples=excluded,
         source_path=Path(path),
+        wizard_boluses=_wizard_boluses(subject),
     )
 
 

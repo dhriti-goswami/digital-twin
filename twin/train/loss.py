@@ -183,6 +183,13 @@ class AdaptiveWeights(nn.Module):
 
     def combine(self, data: Tensor, physics: Tensor, *, ramp: float) -> tuple[Tensor, dict[str, float]]:
         """Combine the two main terms, applying the curriculum ramp to physics."""
+        # ``ramp == 0`` must drop the physics term entirely, not scale it: a
+        # non-finite residual multiplied by zero is still NaN, which would poison
+        # the whole objective during the data-first warmup when the physics term is
+        # supposed to be inert. This is how a training run first went to NaN on
+        # epoch 1, before the residual's own instability was found.
+        if ramp == 0.0:
+            physics = torch.zeros_like(data)
         if self.scheme == "kendall":
             terms = torch.stack([data, physics * ramp])
             weighted = 0.5 * torch.exp(-self.log_variance) * terms + 0.5 * self.log_variance
