@@ -1,0 +1,48 @@
+# Tool configuration only. Dependency installation stays with requirements.txt
+# so the existing Makefile / venv workflow is unchanged.
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+]
+markers = [
+    "slow: takes more than a few seconds (deselect with '-m \"not slow\"')",
+    "needs_ohio: requires the OhioT1DM data directory to be present",
+    "needs_cuda: requires a CUDA device",
+]
+filterwarnings = [
+    "error::DeprecationWarning:twin.*",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = [".venv", "src", "scripts", "frontend"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "NPY", "RUF"]
+ignore = [
+    "E501",   # line length is handled by the formatter
+    "B008",   # function call in default arg: intentional for dataclass factories
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["twin"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+extend-exclude = "(\\.venv|src|scripts|frontend)"
+
+[tool.mypy]
+python_version = "3.12"
+files = ["twin"]
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true

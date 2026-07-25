@@ -20,6 +20,11 @@ numpy>=1.26.0
 pandas>=2.2.0
 scikit-learn>=1.4.0
 scipy>=1.12.0
+statsmodels>=0.14.0        # ARIMA baseline
+
+# Physiological simulation (UVA/Padova virtual patient parameters).
+# Previously imported by src/models/t1d_ode.py without being declared here.
+simglucose>=0.2.11
 
 # Explainability
 shap>=0.44.0
