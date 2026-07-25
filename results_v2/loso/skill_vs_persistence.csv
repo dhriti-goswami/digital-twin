@@ -1,0 +1,5 @@
+horizon_min,metric,method,reference,skill_mean,skill_sd,n_subjects_better,n_subjects
+30,rmse,loso-a7,persistence,0.10827218951096369,0.08351691417210474,10,12
+60,rmse,loso-a7,persistence,0.10271639677214273,0.10440272443697554,10,12
+90,rmse,loso-a7,persistence,0.10465173751563722,0.12000505160736241,10,12
+120,rmse,loso-a7,persistence,0.11706744164652698,0.12591407112874317,10,12
