@@ -55,10 +55,13 @@ def interpolate_bounded(
 ) -> pd.DataFrame:
     """Add bounded-interpolation columns to a gridded frame.
 
-    Only *interior* runs of at most ``max_interp_gap`` consecutive missing slots are
-    filled, linearly. ``limit_area="inside"`` prevents extrapolation past the ends
-    of the record, and ``limit`` caps the run length, so a multi-hour outage is
-    never bridged.
+    A run of consecutive missing slots is filled linearly **only if the entire run
+    is at most ``max_interp_gap`` long** and it is interior to the record.
+
+    That is stricter than ``Series.interpolate(limit=n)``, which fills the *first*
+    ``n`` values of every run: with ``limit=2``, a three-hour outage would receive
+    two fabricated values grafted onto its leading edge, and those values could then
+    enter an input window. Run length is therefore tested explicitly.
 
     Adds:
 
@@ -75,14 +78,31 @@ def interpolate_bounded(
 
     out = frame.copy()
     glucose = out[GLUCOSE_COLUMN]
-    if max_interp_gap == 0:
-        filled = glucose.copy()
-    else:
-        filled = glucose.interpolate(
-            method="linear", limit=max_interp_gap, limit_area="inside"
-        )
+    missing = glucose.isna().to_numpy()
+
+    if max_interp_gap == 0 or not missing.any() or missing.all():
+        out[FILLED_COLUMN] = glucose.copy()
+        out[INTERPOLATED_COLUMN] = False
+        return out
+
+    # Label maximal runs of equal missingness, then measure each run's length.
+    boundaries = np.concatenate([[True], missing[1:] != missing[:-1]])
+    run_id = np.cumsum(boundaries) - 1
+    run_length = np.bincount(run_id)[run_id]
+
+    # Interior only: never extrapolate before the first or after the last reading.
+    present = np.flatnonzero(~missing)
+    first, last = present[0], present[-1]
+    position = np.arange(missing.size)
+
+    fillable = missing & (run_length <= max_interp_gap) & (position > first) & (position < last)
+
+    dense = glucose.interpolate(method="linear", limit_area="inside")
+    filled = glucose.copy()
+    filled.iloc[fillable] = dense.iloc[fillable]
+
     out[FILLED_COLUMN] = filled
-    out[INTERPOLATED_COLUMN] = filled.notna() & glucose.isna()
+    out[INTERPOLATED_COLUMN] = pd.Series(fillable, index=out.index)
     return out
 
 
@@ -199,11 +219,20 @@ def build_windows(
     min_input_coverage: float = 0.9,
     max_interp_gap: int = 2,
     frame: pd.DataFrame | None = None,
+    input_valid: NDArray[np.bool_] | None = None,
 ) -> WindowSet:
     """Emit every valid window for one subject.
 
     ``frame`` may be supplied to reuse an already-interpolated frame; otherwise
     :func:`interpolate_bounded` is applied here.
+
+    ``input_valid`` is an optional per-slot mask that every input slot must satisfy,
+    supplied by :meth:`twin.data.features.FeatureMatrix.valid_row_mask`. It extends
+    the exclusion zone around a gap to cover each feature's look-back: ``roc_30min``
+    reads six slots back, so a glucose-only check would admit a rate differenced
+    against a value from the far side of a gap. Passing the mask is required for any
+    window set used to train or evaluate a model; it is optional here only so the
+    module can be tested without building features.
     """
     grid = subject.grid_minutes
     if any(horizon % grid for horizon in horizons_min):
@@ -255,6 +284,12 @@ def build_windows(
 
     # Rolling counts over the input span via prefix sums.
     has_value = np.isfinite(filled)
+    if input_valid is not None:
+        if input_valid.shape != has_value.shape:
+            raise SequencingError(
+                f"input_valid has shape {input_valid.shape}, expected {has_value.shape}"
+            )
+        has_value = has_value & input_valid
     value_prefix = np.concatenate([[0], np.cumsum(has_value)])
     interp_prefix = np.concatenate([[0], np.cumsum(interpolated)])
 

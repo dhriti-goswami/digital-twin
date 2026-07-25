@@ -62,3 +62,6 @@ htmlcov/
 dist/
 build/
 *.egg-info/
+
+# Rebuild pipeline artifacts
+artifacts/
