@@ -13,7 +13,12 @@ read, it says so rather than being cited on faith.
 
 **Notation.** Glucose $G$ [mg/dL], plasma insulin $I$ [$\mu$U/mL], remote insulin action
 $X$ [min$^{-1}$], time $t$ [min]. Subscript $b$ denotes a basal (fasting) value. $B$ is
-batch size, $H$ the number of horizons, $K$ the number of spline basis functions.
+batch size, $H$ the number of horizons, $K$ the number of spline basis functions. All rate
+constants are **per minute**.
+
+**A complete index of every symbol, abbreviation and feature name is in
+[`NOTATION.md`](NOTATION.md)** — intended as a paper appendix, with each entry naming the
+code identifier that computes it.
 
 ---
 
@@ -140,6 +145,76 @@ $$
 **Insulin sensitivity**, the patient-specific quantity this work reports:
 
 $$S_I = \frac{p_3}{p_2}\qquad[\mathrm{mL}\,\mu\mathrm{U}^{-1}\,\mathrm{min}^{-1}]$$
+
+##### Why that particular ratio — the derivation
+
+$S_I$ is not a fitted nuisance weight; it is the **steady-state gain of the remote
+insulin compartment**, and the ratio form follows directly from the second equation. $X$
+is insulin *action* in the remote (interstitial) compartment — not plasma insulin — with
+$p_3$ setting how fast action builds from a plasma excess and $p_2$ how fast it decays.
+Holding plasma insulin at a constant $I$ and setting $dX/dt = 0$:
+
+$$0 = -p_2 X_{ss} + p_3(I - I_b)
+\quad\Longrightarrow\quad
+X_{ss} = \frac{p_3}{p_2}\,(I - I_b) = S_I\,(I - I_b)$$
+
+So $S_I$ is **insulin action delivered per unit of plasma insulin above basal**, once
+transients have settled. Its role in glucose disposal is then read off the first
+equation, where $X$ enters *additively on the disposal rate constant* $p_1$:
+
+$$\frac{dG}{dt} = -\big(\underbrace{p_1}_{\text{insulin-independent}} + \underbrace{X}_{\text{insulin-dependent}}\big)G + p_1 G_b + \frac{R_a(t)}{V_G}$$
+
+A high $S_I$ means the same plasma insulin excess produces a larger disposal constant, so
+glucose falls harder — insulin *sensitive*. A low $S_I$ means the same insulin barely
+moves the disposal rate — insulin *resistant*. This is the fractional-clearance-per-unit-insulin
+quantity a euglycaemic clamp measures, which is why the ratio and not either constant
+alone is the reportable number.
+
+**Units check.** $p_3$ carries mL·µU⁻¹·min⁻² and $p_2$ carries min⁻¹, so the quotient is
+mL·µU⁻¹·min⁻¹. Multiplied by an insulin excess in µU/mL it yields min⁻¹ — the same units
+as $p_1$, as it must be to sit beside it in the bracket.
+
+**Population anchor.** $S_I^{\text{IDDM}} = 2.5\times10^{-4}$ mL·µU⁻¹·min⁻¹
+(`S_I_IDDM_MEAN` in `twin/physio/params.py`, from Ward et al. 1991 — §2.6). Note $p_3$'s
+bound is *derived* as $S_I p_2$ rather than sourced independently, which is why $p_3$
+inherits the `VERIFIED-PRIMARY` tag through $S_I$.
+
+##### What we can and cannot claim about it
+
+`A3` vs `A4` — per-patient $\theta_p$ against population-fixed $\theta_p$ — differ by
+0.07–0.23 mg/dL with $p \ge 0.34$. **Estimating $S_I$ therefore costs essentially nothing
+in accuracy, and has not been shown to improve it either.** The claim is that the
+parameter comes for free, not that it helps the forecast.
+
+Three pre-registered checks ([`PREREGISTRATION.md`](PREREGISTRATION.md), fixed before the
+numbers existed) decide whether the estimate is reportable as physiology:
+
+| Check | What it rules out | Official | LOSO |
+|---|---|---|---|
+| Spearman $\rho$ vs total daily dose per kg | a number uncorrelated with insulin requirement | $-0.839$ ✓ | fails |
+| Test–retest ICC(1) on disjoint windows | an unstable quantity that is not a parameter at all | 0.890 ✓ | 0.816 ✓ |
+| Non-degenerate cross-subject CV | collapse to the population mean | ✓ | 34.3% ✓ |
+
+**Under the official protocol all three pass**, and subjects rank almost monotonically by
+true insulin requirement — 596 (25 U/day) highest $S_I$, 563 (103 U/day) lowest — with
+the model never seeing insulin requirement as an input. **Under LOSO the correlation check
+fails**: the estimate stays stable and non-degenerate, but with the subject genuinely
+unseen it does not demonstrably track their insulin requirement.
+
+That gap is the honest reading: the strong official-protocol correlation **may
+substantially reflect subject-specific patterns learned from that subject's own training
+data** rather than physiology inferred from the observation window alone. Two further
+caveats: $S_I$ is **partly range-enforced** by construction, since $p_2$ and $p_3$ are
+sigmoid-squashed into published intervals, so landing in a plausible interval is partly
+imposed rather than learned; and OhioT1DM contains **no euglycaemic clamp**, so there is
+no ground-truth $S_I$ anywhere in this work — all three checks are consistency and
+concurrent-validity arguments, not agreement with a measurement.
+
+**The claim we make, stated exactly:** *$S_I$ is a stable, subject-specific parameter
+estimate whose external validity is demonstrated in the personalised setting only.
+Cross-subject external validity is not established on 12 subjects.* Anyone reporting a
+*measured* insulin sensitivity from CGM and pump records alone, without a clamp and
+without a subject-disjoint check, is overreaching.
 
 *On the published form.* The 1981 figure caption writes $p_3 I(t)$, not
 $p_3(I - I_b)$. We use the modern form with the basal subtraction; §4.1 shows this is

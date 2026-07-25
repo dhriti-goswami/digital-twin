@@ -4,7 +4,7 @@
 
 Dataset: OhioT1DM, 12 subjects. Test windows: **26,498**, gap-strict. Metrics computed **per subject**, then reported as **mean ± SD across subjects**; pooled figures appear in the CSVs as clearly-labelled secondary values.
 
-Companion: [`METHODOLOGY.md`](METHODOLOGY.md) for every equation, derivation and citation.
+Companions: [`METHODOLOGY.md`](METHODOLOGY.md) for every equation, derivation and citation; [`NOTATION.md`](NOTATION.md) for every symbol, abbreviation and feature name used in either document.
 
 ---
 
@@ -253,6 +253,8 @@ Predicted LBGI is systematically *below* actual (0.65 vs 0.77 at 30 min, 0.33 vs
 ---
 
 ## 6. Insulin sensitivity
+
+**`S_I` (insulin sensitivity index) is the steady-state gain of the remote insulin compartment,** $S_I = p_3/p_2$ [mL·µU⁻¹·min⁻¹]. Setting $dX/dt = -p_2X + p_3(I-I_b) = 0$ gives $X_{ss} = (p_3/p_2)(I-I_b)$, so `S_I` is *insulin action delivered per unit of plasma insulin above basal*. Since $X$ enters the glucose equation additively on the disposal constant $p_1$, a high `S_I` means the same insulin excess drives glucose down harder — insulin sensitive; a low `S_I` means it barely moves disposal — insulin resistant. It is the quantity a euglycaemic clamp measures, and it is the one patient-specific *physiological* number this work reports rather than a fitted nuisance weight. Derivation in [`METHODOLOGY.md`](METHODOLOGY.md) §2.3; symbol index in [`NOTATION.md`](NOTATION.md).
 
 Pre-registered criteria, fixed in [`PREREGISTRATION.md`](PREREGISTRATION.md) **before** any of these numbers existed. `S_I` is reported as a patient-specific physiological estimate **only if all three hold**.
 

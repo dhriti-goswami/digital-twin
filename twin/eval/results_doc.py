@@ -92,7 +92,11 @@ def build() -> str:  # noqa: PLR0915 - a document generator is legitimately long
         "computed **per subject**, then reported as **mean ± SD across subjects**; pooled "
         "figures appear in the CSVs as clearly-labelled secondary values.\n"
     )
-    add("Companion: [`METHODOLOGY.md`](METHODOLOGY.md) for every equation, derivation and citation.\n")
+    add(
+        "Companions: [`METHODOLOGY.md`](METHODOLOGY.md) for every equation, derivation and "
+        "citation; [`NOTATION.md`](NOTATION.md) for every symbol, abbreviation and feature "
+        "name used in either document.\n"
+    )
 
     # ------------------------------------------------------------- data section
     add("---\n\n## 1. Data accounting\n")
@@ -480,6 +484,18 @@ def build() -> str:  # noqa: PLR0915 - a document generator is legitimately long
 
     # -------------------------------------------------------------------- S_I
     add("---\n\n## 6. Insulin sensitivity\n")
+    add(
+        "**`S_I` (insulin sensitivity index) is the steady-state gain of the remote insulin "
+        "compartment,** $S_I = p_3/p_2$ [mL·µU⁻¹·min⁻¹]. Setting $dX/dt = -p_2X + p_3(I-I_b) "
+        "= 0$ gives $X_{ss} = (p_3/p_2)(I-I_b)$, so `S_I` is *insulin action delivered per "
+        "unit of plasma insulin above basal*. Since $X$ enters the glucose equation additively "
+        "on the disposal constant $p_1$, a high `S_I` means the same insulin excess drives "
+        "glucose down harder — insulin sensitive; a low `S_I` means it barely moves disposal — "
+        "insulin resistant. It is the quantity a euglycaemic clamp measures, and it is the one "
+        "patient-specific *physiological* number this work reports rather than a fitted "
+        "nuisance weight. Derivation in [`METHODOLOGY.md`](METHODOLOGY.md) §2.3; symbol index "
+        "in [`NOTATION.md`](NOTATION.md).\n"
+    )
     add(
         "Pre-registered criteria, fixed in [`PREREGISTRATION.md`](PREREGISTRATION.md) "
         "**before** any of these numbers existed. `S_I` is reported as a patient-specific "
