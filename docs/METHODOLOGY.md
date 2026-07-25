@@ -791,12 +791,39 @@ over 728 actual hypoglycaemic events across the cohort. The model misses 53% of
 them where persistence misses 42%, and systematically under-predicts time below
 range (mean −0.93 pp, worst −3.88 pp for subject 567).
 
-**Mechanism.** A Huber (or any mean-seeking) loss estimates the conditional mean.
-Hypoglycaemia is a rare tail event, so the mean-optimal forecast is pulled away from
-it. Persistence has no such pull: when the subject is currently low it predicts low
-and is credited. Critically, `cv_ratio` is 0.964 — the model is **not** globally
-flattening its output. The compression is specific to the hypoglycaemic tail, which
-is a sharper diagnosis than generic excursion compression.
+**Mechanism — established by ablation, after a wrong first hypothesis.**
+
+The initial explanation was that a Huber (mean-seeking) loss estimates the
+conditional mean, and hypoglycaemia being a rare tail event is therefore
+systematically under-predicted. **Ablation A0 falsified this.** A0 uses the identical
+loss with the physics removed entirely:
+
+| arm | hypo sensitivity @30 min | below-range Δ (pp) | cv_ratio | MAE@30 |
+|---|---|---|---|---|
+| Persistence | 0.581 | +0.01 | 0.999 | 16.87 |
+| **A0, no physics** | **0.621** | −0.06 | 0.990 | 13.51 |
+| Hybrid, physics on | **0.471** | **−0.93** | 0.964 | 13.65 |
+
+A0 *beats* persistence on event detection and is essentially unbiased on time below
+range. The loss is therefore exonerated: **the deficit is caused by the physics.**
+
+The actual mechanism is structural in the Bergman model. Its glucose equation has an
+equilibrium at `G_b`, the subject's fasting glucose:
+
+$$\left.\frac{dG}{dt}\right|_{G = G_b} = 0, \qquad \text{and } \frac{dG}{dt} < 0 \text{ for } G > G_b,\ \ \frac{dG}{dt} > 0 \text{ for } G < G_b$$
+
+With disposal floored at zero (§2.5) the prior always *relaxes toward* `G_b`. Since
+hypoglycaemia lies below `G_b`, the mechanistic prior actively pushes low forecasts
+upward — an attractor bias, not a tail-averaging artefact. The learned gate `g`
+controls how strongly this applies, and `g` rises monotonically during training, so
+the bias grows as the model comes to trust the prior more.
+
+This is a substantive limitation of Bergman-constrained forecasting for the
+hypoglycaemic range, and it is not fixable by reweighting the loss. It would need
+either an asymmetric gate (trusting the prior less below `G_b`), an endogenous
+glucose-production term that does not collapse to a single equilibrium, or the prior
+applied only above a glucose threshold. None of those is implemented here; the
+limitation is reported as found.
 
 Three consequences, all of which belong in the paper rather than a footnote.
 
@@ -808,10 +835,12 @@ supports. Event-level sensitivity must be reported beside it.
 
 **2. Declining the asymmetric training penalty is what made this visible.** Had the
 legacy `clinical_penalty_loss` (or a corrected version of it) been in the objective,
-the model would have been pushed toward the hypoglycaemic tail, zone A would have
-risen, and the weakness would have been hidden behind a better-looking safety table.
-The metric measured something real precisely because it was not optimised. This is
-the concrete vindication of the rule in §4.4.
+the model would have been pushed toward the hypoglycaemic range, zone A would have
+risen, and the deficit would have been hidden behind a better-looking safety table --
+*and* the true cause would have been masked, since the penalty would have partly
+cancelled the prior's attractor bias rather than removing it. The metric measured
+something real precisely because it was not optimised. This is the concrete
+vindication of the rule in §4.4.
 
 **3. The honest framing of the contribution changes.** The model is a better
 *estimator* than persistence and a worse *detector*. For a forecasting paper that is
@@ -820,10 +849,11 @@ and the fix is a decision-theoretic one — an explicit, reported operating poin
 cost-sensitive decision rule applied *after* the forecast — not a tilt buried in the
 training loss where it would contaminate the safety metrics.
 
-The ablation matrix tests whether this deficit is uniform across arms. If it appears
-in A0 (no physics) as well, it is a property of the mean-seeking objective rather
-than of the physics-guided architecture, and should be reported as a general finding
-about CGM forecasting objectives.
+**4. On method.** The first published explanation of this result would have been
+wrong. It was corrected only because A0 was run as a controlled arm rather than
+assumed to behave like the full model. Any mechanism attributed to a component of a
+composite model needs the ablation that isolates it -- which is the same argument that
+made A1 necessary for the PINN claim.
 
 ---
 
