@@ -74,7 +74,45 @@ Two limitations fixed in advance and not discovered late: the carbohydrate-ratio
 
 **No asymmetric hypo/hyper penalty is used in training, ever.** Such a penalty inflates zone A by construction, and here it would additionally have masked the cause by partly cancelling the prior's attractor bias rather than removing it. The metric measured something real precisely because it was not optimised.
 
-## 6. What this work does not claim
+## 6. Hypoglycaemia alarm from the predictive distribution
+
+The point forecast under-detects hypoglycaemia by construction: every arm
+over-predicts below 70 mg/dL by +7.29 mg/dL even with the physics removed, because a
+mean-seeking loss estimates the conditional mean and hypoglycaemia is a tail event.
+The remedy is distributional — predict the lower quantile and alarm on it — rather
+than tilting the objective, which would bias the reported forecast and inflate
+error-grid zone A.
+
+| Alarm source | Sensitivity | Specificity | Precision | False positives |
+|---|---|---|---|---|
+| Persistence | 0.581 | — | — | — |
+| A0 (no physics), point forecast | 0.637 | — | — | — |
+| Point forecast (median) | 0.566 | 0.993 | 0.699 | 173 |
+| **Lower quantile, q = 0.10** | **0.928** | 0.951 | 0.347 | 1,257 |
+
+Sensitivity improves in **all 8** subjects with at least 20 hypoglycaemic events, most
+sharply where the point forecast failed outright (0.000 → 0.864 for one subject,
+0.204 → 0.852 for another).
+
+**Calibration is the load-bearing check.** 9.5% of outcomes fall below the predicted
+10th percentile (target 10.0%) and 88.9% below the 90th (target 90.0%). The quantiles
+mean what they claim, so this is a predictive-distribution result rather than a
+threshold tuned until sensitivity looked acceptable.
+
+Point accuracy improves slightly alongside it (RMSE@30 18.84 versus 19.06 without the
+quantile head), consistent with the pinball loss acting as a multi-task regulariser.
+
+**The cost is explicit.** Precision falls from 0.699 to 0.347 and false positives rise
+from 173 to 1,257. For a hypoglycaemia alarm that is the correct direction — a missed
+event is far worse than a spurious one — but it *is* a trade, and the operating point
+is a reported, tunable choice rather than a bias hidden in the objective. Any quantile
+level can be re-evaluated from the stored predictions without retraining.
+
+Quantiles cannot cross by construction (softplus offsets accumulating outward from the
+median, verified at input scales from 1e-3 to 1e4), and the median column *is* the
+reported point forecast.
+
+## 7. What this work does not claim
 
 - **Not state of the art.** Best credible published 30-min MAE on OhioT1DM is 12.83 mg/dL; this work reaches 13.25 (personalised) and 14.66 (subject-disjoint).
 - **`MAE < 15 mg/dL` is not a novel achievement.** It is the field median — 15 of 17 published entries clear it, including a *non-personalised* LSTM at 14.37 — and persistence alone reaches 16.36.
@@ -83,7 +121,7 @@ Two limitations fixed in advance and not discovered late: the carbohydrate-ratio
 - **The physics does not significantly improve accuracy.** No arm beats the no-physics baseline after Holm correction. Its value here is a stable patient-specific parameter estimate at no accuracy cost, not better point accuracy.
 - **Not clinically deployable.** Hypoglycaemia detection is at or below persistence. That is disqualifying for a clinical-utility claim until addressed, and the fix belongs in a reported decision rule after the forecast, not as a tilt inside the objective.
 
-## 7. Reproduction
+## 8. Reproduction
 
 ```bash
 python -m twin --config configs/official-small.yaml data
