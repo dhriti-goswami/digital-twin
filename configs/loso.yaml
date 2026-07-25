@@ -1,0 +1,24 @@
+# OhioT1DM official temporal-holdout protocol.
+# Measures personalised forecasting: the test files are the same subjects at a
+# Leave-one-subject-out: 12 subject-disjoint folds, each testing on the held-out
+# subject's test file -- the same windows the official protocol scores, so the
+# difference between protocols isolates the value of subject-specific history.
+  name: loso
+  seed: 42
+  deterministic: true
+  device: auto
+  out_root: artifacts
+
+data:
+  dataset: ohio
+  root: OhioT1DM
+  grid_minutes: 5
+  seq_len: 24              # 2 h of context
+  horizons_min: [30, 60, 90, 120]
+  max_interp_gap: 2        # at most 10 min bridged, whole-run basis
+  min_input_coverage: 0.9
+
+split:
+  protocol: loso
+  val_fraction: 0.15
+  purge_steps: null        # resolves to seq_len + max_horizon_steps = 48

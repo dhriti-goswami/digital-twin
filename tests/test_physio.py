@@ -339,6 +339,97 @@ def test_insulin_action_peaks_after_bolus(params: PatientParams):
 # --------------------------------------------------------------------------- #
 
 
+def test_insulin_action_is_zero_at_a_consistent_basal():
+    """``X`` must vanish at basal when ``I_b`` matches the basal rate.
+
+    Bergman drives remote insulin action by insulin *above basal*. If ``X`` is
+    driven by total plasma insulin instead, it is positive at basal, which destroys
+    the glucose equilibrium (see the next test).
+    """
+    from twin.physio import basal_insulin_concentration
+
+    basal = torch.tensor([0.02], dtype=DTYPE)
+    reference = population_params(batch_size=1, dtype=DTYPE)
+    consistent_ib = basal_insulin_concentration(reference, basal)
+
+    estimated = {name: torch.tensor([v], dtype=DTYPE) for name, v in _mean_dict().items()}
+    params = PatientParams.from_estimated(
+        estimated,
+        body_weight_kg=torch.tensor([70.0], dtype=DTYPE),
+        G_b=torch.tensor([120.0], dtype=DTYPE),
+        I_b=consistent_ib,
+    )
+
+    x0 = basal_steady_state(params, basal)
+    from twin.physio.compartments import IDX_X
+
+    assert abs(float(x0[0, IDX_X])) < 1e-12
+
+
+def test_basal_is_a_glucose_equilibrium():
+    """Starting at ``G_b`` under basal insulin, glucose must not drift.
+
+    This is the property whose absence made the mechanistic prior collapse by more
+    than 200 mg/dL over a two-hour forecast: with ``X > 0`` at basal, the glucose
+    equation pulled toward ``p1 G_b / (p1 + X)``, far below basal, with no stimulus
+    present at all.
+    """
+    from twin.physio import basal_insulin_concentration
+
+    steps = 241
+    basal = torch.tensor([0.02], dtype=DTYPE)
+    reference = population_params(batch_size=1, dtype=DTYPE)
+    estimated = {name: torch.tensor([v], dtype=DTYPE) for name, v in _mean_dict().items()}
+    params = PatientParams.from_estimated(
+        estimated,
+        body_weight_kg=torch.tensor([70.0], dtype=DTYPE),
+        G_b=torch.tensor([120.0], dtype=DTYPE),
+        I_b=basal_insulin_concentration(reference, basal),
+    )
+
+    u_ins = basal.unsqueeze(-1).expand(1, steps).clone()
+    u_carb = torch.zeros(1, steps, dtype=DTYPE)
+    trajectory = simulate_compartments(
+        params, u_ins, u_carb, dt=DT, x0=basal_steady_state(params, basal)
+    )
+    glucose = integrate_glucose(
+        params.G_b,
+        trajectory.X[:, :steps],
+        trajectory.Ra_mgdl_per_min[:, :steps],
+        params,
+        dt=DT,
+    )
+    drift = (glucose[0] - params.G_b[0]).abs().max()
+    assert drift < 1e-9, f"glucose drifted {float(drift):.4f} mg/dL from basal"
+
+
+def test_inconsistent_basal_insulin_breaks_the_equilibrium():
+    """Documents the failure mode, so the fix cannot be silently reverted."""
+    steps = 121
+    basal = torch.tensor([0.02], dtype=DTYPE)
+    estimated = {name: torch.tensor([v], dtype=DTYPE) for name, v in _mean_dict().items()}
+    params = PatientParams.from_estimated(
+        estimated,
+        body_weight_kg=torch.tensor([70.0], dtype=DTYPE),
+        G_b=torch.tensor([120.0], dtype=DTYPE),
+        # Deliberately wrong: not the concentration implied by the basal rate.
+        I_b=torch.tensor([0.0], dtype=DTYPE),
+    )
+    u_ins = basal.unsqueeze(-1).expand(1, steps).clone()
+    u_carb = torch.zeros(1, steps, dtype=DTYPE)
+    trajectory = simulate_compartments(
+        params, u_ins, u_carb, dt=DT, x0=basal_steady_state(params, basal)
+    )
+    glucose = integrate_glucose(
+        params.G_b,
+        trajectory.X[:, :steps],
+        trajectory.Ra_mgdl_per_min[:, :steps],
+        params,
+        dt=DT,
+    )
+    assert (glucose[0] - params.G_b[0]).abs().max() > 20.0
+
+
 def test_basal_steady_state_is_stationary(params: PatientParams):
     """Starting at the analytic basal steady state, nothing may drift."""
     steps = 300
@@ -526,3 +617,41 @@ def test_state_index_constants_match_names():
 
     assert STATE_NAMES[IDX_S2] == "S2"
     assert len(STATE_NAMES) == len(set(STATE_NAMES))
+
+
+def test_chunked_advance_matches_sequential_scan():
+    """``advance_compartments`` must be exact, not an approximation.
+
+    The burn-in is advanced in chunks of matrix powers rather than step by step,
+    because a 144-step scan of tiny matrix-vector products was 73% of the model's
+    forward pass. Speed is only acceptable if the result is identical.
+    """
+    from twin.physio import advance_compartments, basal_insulin_concentration
+
+    steps = 144
+    reference = population_params(batch_size=4, dtype=DTYPE)
+    basal = torch.full((4,), 0.02, dtype=DTYPE)
+    estimated = {name: getattr(reference, name) for name in
+                 ("p1", "p2", "p3", "n", "tmax_I", "k_gri", "k_abs", "f")}
+    estimated["V_G_per_kg"] = reference.V_G / 70.0
+    estimated["V_I_per_kg"] = reference.V_I / 70.0
+    params = PatientParams.from_estimated(
+        estimated,
+        body_weight_kg=torch.full((4,), 70.0, dtype=DTYPE),
+        G_b=torch.full((4,), 120.0, dtype=DTYPE),
+        I_b=basal_insulin_concentration(reference, basal),
+    )
+
+    generator = torch.Generator().manual_seed(0)
+    u_ins = torch.rand(4, steps, generator=generator, dtype=DTYPE) * 0.05
+    u_carb = torch.zeros(4, steps, dtype=DTYPE)
+    u_carb[:, 30] = 40_000.0
+    u_carb[:, 90] = 60_000.0
+    x0 = basal_steady_state(params, basal)
+
+    sequential = simulate_compartments(params, u_ins, u_carb, dt=5.0, x0=x0).states[:, -1]
+    for chunk_size in (1, 8, 24, 48):
+        chunked = advance_compartments(
+            params, u_ins, u_carb, dt=5.0, x0=x0, chunk_size=chunk_size
+        )
+        assert torch.allclose(chunked, sequential, atol=1e-9), f"chunk_size={chunk_size}"

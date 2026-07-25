@@ -230,6 +230,18 @@ def fit_scaler(
 # --------------------------------------------------------------------------- #
 
 
+#: Grid steps of insulin and carbohydrate history supplied before each anchor so
+#: the mechanistic state is settled when the forecast interval begins.
+#:
+#: The compartments are initialised at the analytic basal steady state and then
+#: replay the subject's real history, so the state entering the forecast is
+#: data-driven rather than assumed. 144 steps at 5 minutes is 12 hours: several
+#: multiples of the slowest time constant in the admissible parameter range
+#: (``k_abs`` as low as 0.005/min gives a 200-minute gut time constant), so a meal
+#: or bolus before the burn-in cannot leave a trace.
+PHYSICS_BURNIN_STEPS = 144
+
+
 @dataclass
 class WindowBatchSource:
     """One subject's scaled features plus the windows selected from it."""
@@ -240,11 +252,16 @@ class WindowBatchSource:
     targets: NDArray[np.float32]
     anchor_glucose: NDArray[np.float32]
     seq_len: int
-    #: Insulin and carbohydrate input rates on the grid, needed by the physics term
-    #: to advance the mechanistic state over the forecast interval.
+    #: Insulin and carbohydrate input rates on the grid, padded at both ends, from
+    #: which each window's physics span is sliced.
     insulin_rate: NDArray[np.float32]
     carb_rate: NDArray[np.float32]
     horizon_steps: tuple[int, ...]
+    #: Observable basal glucose for this subject, resolved leakage-free per fold.
+    basal_glucose: float = 120.0
+    body_weight_kg: float = 70.0
+    #: Offset applied to an anchor to index into the padded rate arrays.
+    pad_offset: int = PHYSICS_BURNIN_STEPS
 
 
 class WindowDataset(Dataset):
@@ -283,7 +300,12 @@ class WindowDataset(Dataset):
         start = anchor - source.seq_len + 1
 
         features = source.scaled[start : anchor + 1]
-        span = slice(anchor, anchor + self.physics_span_steps + 1)
+        # The physics span runs from the burn-in start to the longest horizon. The
+        # rate arrays are pre-padded by ``pad_offset`` at the front, so an anchor
+        # early in the record still has a full burn-in (of zero input, i.e. only the
+        # basal steady state, which is the correct assumption for unknown history).
+        physics_start = anchor + source.pad_offset - PHYSICS_BURNIN_STEPS
+        span = slice(physics_start, physics_start + PHYSICS_BURNIN_STEPS + self.physics_span_steps + 1)
         return {
             "features": torch.from_numpy(np.ascontiguousarray(features)),
             "targets": torch.from_numpy(source.targets[local]),
@@ -294,7 +316,58 @@ class WindowDataset(Dataset):
             # compare numpy arrays and only happen to work via an identity
             # short-circuit.
             "subject_index": torch.tensor(source_index, dtype=torch.long),
+            "basal_glucose": torch.tensor(source.basal_glucose, dtype=torch.float32),
+            "body_weight_kg": torch.tensor(source.body_weight_kg, dtype=torch.float32),
         }
+
+
+#: Hours treated as the overnight fasting window when estimating basal glucose.
+FASTING_HOURS = (0, 6)
+
+
+def fasting_glucose(data: SubjectData) -> float:
+    """Median overnight glucose -- an observable estimate of ``G_b``.
+
+    ``G_b`` is not estimated by the network. It is a measurable summary of the
+    subject's own record, so inventing a latent for it would be modelling something
+    already observed.
+    """
+    frame = data.frame
+    hour = frame.index.hour
+    overnight = frame.loc[(hour >= FASTING_HOURS[0]) & (hour < FASTING_HOURS[1]), FILLED_COLUMN]
+    value = float(overnight.median()) if overnight.notna().any() else float(
+        frame[FILLED_COLUMN].median()
+    )
+    return value
+
+
+def resolve_basal_glucose(
+    fold: Fold, corpus: dict[str, dict[str, SubjectData]]
+) -> dict[str, float]:
+    """Per-subject ``G_b``, resolved so it never leaks across a split.
+
+    Under the official protocol each subject's own **training** period supplies the
+    value -- legitimate, since that subject's history is available by construction.
+
+    Under LOSO the held-out subject's own data is off-limits, including for a
+    summary statistic, so the value is the mean across the *training* subjects. A
+    fasting median is a weak statistic, but taking it from the held-out subject
+    would still be using that subject to configure the model that scores it.
+    """
+    training_values = {
+        selection.subject_id: fasting_glucose(corpus["train"][selection.subject_id])
+        for selection in fold.train
+    }
+    if not training_values:
+        raise ValueError(f"{fold.name}: no training subjects to estimate basal glucose from")
+    population = float(np.mean(list(training_values.values())))
+
+    resolved = dict(training_values)
+    if fold.protocol == "loso" and fold.held_out_subject is not None:
+        resolved[fold.held_out_subject] = population
+    for subject_id in corpus["test"]:
+        resolved.setdefault(subject_id, population)
+    return resolved
 
 
 def build_dataset(
@@ -317,6 +390,7 @@ def build_dataset(
     # The forecast interval plus one slot, so the mechanistic state can be advanced
     # across the whole horizon.
     physics_span = config.data.max_horizon_steps
+    basal_glucose = resolve_basal_glucose(fold, corpus)
 
     sources: list[WindowBatchSource] = []
     for selection in selections:
@@ -331,12 +405,15 @@ def build_dataset(
             + frame["bolus_u_per_min"].to_numpy(dtype=np.float64)
         )
         carbs = frame["carbs_mg_per_min"].to_numpy(dtype=np.float64)
-        # Pad the tail so a window whose horizon reaches the final slot can still
-        # read a full span. Padding with zero input is correct: nothing is known to
-        # be delivered beyond the record.
-        pad = physics_span + 1
-        insulin = np.concatenate([insulin, np.zeros(pad)])
-        carbs = np.concatenate([carbs, np.zeros(pad)])
+        # Pad both ends. The tail lets a window whose horizon reaches the final slot
+        # read a full span; the head gives every anchor a full burn-in. Zero input
+        # is the right pad in both directions: nothing is known to be delivered
+        # outside the record, and the compartments start from the basal steady state
+        # regardless.
+        head = np.zeros(PHYSICS_BURNIN_STEPS)
+        tail = np.zeros(physics_span + 1)
+        insulin = np.concatenate([head, insulin, tail])
+        carbs = np.concatenate([head, carbs, tail])
 
         anchors = data.windows.anchors[selection.indices]
         sources.append(
@@ -351,6 +428,8 @@ def build_dataset(
                 insulin_rate=insulin.astype(np.float32),
                 carb_rate=carbs.astype(np.float32),
                 horizon_steps=data.windows.horizon_steps,
+                basal_glucose=float(basal_glucose[selection.subject_id]),
+                body_weight_kg=float(data.subject.body_weight_kg),
             )
         )
     return WindowDataset(sources, physics_span_steps=physics_span)
