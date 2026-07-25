@@ -13,7 +13,21 @@ A3      + mechanistic prior and residual correction  hybrid versus pure penalty
 A4      A3 with population-fixed parameters          the value of per-patient estimation
 A5      A3 + simulation pretraining                  transfer value
 A6      A3 with the legacy hand-rolled IOB/COB       the value of mechanistic features
+A7      A3 with no curriculum at all                 whether the data-first ramp is needed
 ======  ===========================================  =========================================
+
+A7 exists because of an observed misalignment. At three different curriculum lengths
+the validation optimum landed one to two epochs *before* the physics weight reached
+full strength, and therefore before model selection became eligible. That is not
+coincidence: the ramp raises the objective as it is applied, so by the time physics
+is fully weighted the model has already begun to overfit.
+
+The usual justification for a data-first ramp is that a residual should not be
+enforced on a randomly-initialised trajectory. Here the spline head is initialised
+at the persistence forecast rather than at noise, so the trajectory is already
+sensible at epoch 1 and the justification may simply not apply. Applying the physics
+weight from the start also makes every epoch comparable, and therefore selectable --
+which removes the misalignment rather than tuning around it.
 
 Every configuration shares the identical corpus, splits, scaler, seed, and epoch
 budget, so the only difference between two rows is the thing being ablated.
@@ -128,6 +142,20 @@ ABLATIONS: tuple[Ablation, ...] = (
             "physics.weighting": "kendall",
             "model.hybrid_residual": True,
             "model.per_patient_params": False,
+        },
+    ),
+    Ablation(
+        id="A7",
+        label="hybrid with no physics curriculum (full weight from epoch 1)",
+        isolates="whether the data-first ramp is needed at all for this architecture",
+        overrides={
+            "physics.enabled": True,
+            "physics.weighting": "kendall",
+            "model.hybrid_residual": True,
+            "model.per_patient_params": True,
+            "physics.param_warmup_epochs": 0,
+            "physics.ramp_start_epoch": 0,
+            "physics.ramp_end_epoch": 0,
         },
     ),
     Ablation(

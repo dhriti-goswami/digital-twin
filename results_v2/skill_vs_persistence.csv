@@ -1,0 +1,5 @@
+horizon_min,metric,method,reference,skill_mean,skill_sd,n_subjects_better,n_subjects
+30,rmse,small-fast,persistence,0.16998756564701742,0.05280059466285432,12,12
+60,rmse,small-fast,persistence,0.1677152844438398,0.05976529158151637,12,12
+90,rmse,small-fast,persistence,0.1685558451079421,0.07220377570378078,12,12
+120,rmse,small-fast,persistence,0.17903228561010262,0.0808933491745381,12,12
