@@ -1,0 +1,13 @@
+=== official: {'train': 96842, 'val': 17184, 'test': 26498} ===
+epoch   1  train 104.7673  val MAE@30  15.41  mean  26.79 gate 0.111  ramp 0.00  62.1s
+  (selection and early stopping begin at epoch 26, once the curriculum is complete)
+epoch   2  train  79.1378  val MAE@30  15.19  mean  26.39 gate 0.117  ramp 0.00  31.7s
+epoch   3  train  64.1767  val MAE@30  14.70  mean  26.18 gate 0.124  ramp 0.00  32.2s
+epoch   4  train  52.3841  val MAE@30  14.59  mean  26.13 gate 0.131  ramp 0.00  30.8s
+epoch   5  train  43.0333  val MAE@30  14.56  mean  26.22 gate 0.137  ramp 0.00  31.1s
+epoch   6  train  35.4757  val MAE@30  14.63  mean  26.32 gate 0.142  ramp 0.01  30.7s
+epoch   7  train  29.5510  val MAE@30  14.78  mean  26.76 gate 0.148  ramp 0.02  31.3s
+epoch   8  train  24.6524  val MAE@30  14.88  mean  27.03 gate 0.152  ramp 0.05  31.0s
+epoch   9  train  20.7544  val MAE@30  14.67  mean  26.68 gate 0.157  ramp 0.10  31.3s
+epoch  10  train  17.4880  val MAE@30  14.96  mean  27.19 gate 0.162  ramp 0.15  30.7s
+epoch  11  train  14.6155  val MAE@30  14.92  mean  27.61 gate 0.171  ramp 0.21  68.7s
