@@ -1,0 +1,25 @@
+ablation,label,isolates,horizon_min,mae_mean,mae_sd
+A0,"Transformer only, no physics",the data-driven baseline every physics claim is measured against,30,13.511366397831,1.6324096846085812
+A0,"Transformer only, no physics",the data-driven baseline every physics claim is measured against,60,22.818946725526136,2.875626728817573
+A0,"Transformer only, no physics",the data-driven baseline every physics claim is measured against,90,29.739954677567955,3.739181338662821
+A0,"Transformer only, no physics",the data-driven baseline every physics claim is measured against,120,34.93414586386655,4.197263065743145
+A3,hybrid: mechanistic prior plus learned residual correction,"a physics prior the network corrects, versus a penalty term alone",30,13.649324109266349,1.6210598690424158
+A3,hybrid: mechanistic prior plus learned residual correction,"a physics prior the network corrects, versus a penalty term alone",60,23.12227914486905,2.970275134591741
+A3,hybrid: mechanistic prior plus learned residual correction,"a physics prior the network corrects, versus a penalty term alone",90,30.023417083286617,4.102798918681226
+A3,hybrid: mechanistic prior plus learned residual correction,"a physics prior the network corrects, versus a penalty term alone",120,34.82938184462706,4.704342160863426
+A1,"naive PINN: collocation residual, fixed lambda = 0.1",what the original draft's declared method would have produced had it ever been trained,30,13.675176395275598,1.6817442109982466
+A1,"naive PINN: collocation residual, fixed lambda = 0.1",what the original draft's declared method would have produced had it ever been trained,60,23.470331120794796,2.889025150198165
+A1,"naive PINN: collocation residual, fixed lambda = 0.1",what the original draft's declared method would have produced had it ever been trained,90,30.9268549542294,3.77706348679016
+A1,"naive PINN: collocation residual, fixed lambda = 0.1",what the original draft's declared method would have produced had it ever been trained,120,36.22393560733364,4.255526868956924
+A2,residual with learned log-variance weighting,whether adaptive weighting beats a hand-picked constant,30,13.577056969341823,1.6645420845501435
+A2,residual with learned log-variance weighting,whether adaptive weighting beats a hand-picked constant,60,23.351383789207617,3.056405764459078
+A2,residual with learned log-variance weighting,whether adaptive weighting beats a hand-picked constant,90,30.59232438462767,4.104259336711642
+A2,residual with learned log-variance weighting,whether adaptive weighting beats a hand-picked constant,120,35.74079417413856,4.683948906471572
+A4,hybrid with population-fixed parameters,how much the per-patient parameter estimate is actually worth,30,13.583917696312442,1.816157473100376
+A4,hybrid with population-fixed parameters,how much the per-patient parameter estimate is actually worth,60,23.34889458265131,3.4007264657029745
+A4,hybrid with population-fixed parameters,how much the per-patient parameter estimate is actually worth,90,30.5698589291954,4.406207013510532
+A4,hybrid with population-fixed parameters,how much the per-patient parameter estimate is actually worth,120,35.59121481256214,4.642787639732098
+A7,hybrid with no physics curriculum (full weight from epoch 1),whether the data-first ramp is needed at all for this architecture,30,13.245947991490572,1.6855880700492394
+A7,hybrid with no physics curriculum (full weight from epoch 1),whether the data-first ramp is needed at all for this architecture,60,22.290313220311816,2.926256658627142
+A7,hybrid with no physics curriculum (full weight from epoch 1),whether the data-first ramp is needed at all for this architecture,90,28.771772657778403,3.753368080674016
+A7,hybrid with no physics curriculum (full weight from epoch 1),whether the data-first ramp is needed at all for this architecture,120,33.38002180176473,4.20934355603738
