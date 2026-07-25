@@ -1,115 +1,88 @@
-# Real Diabetes Datasets
+# Datasets in this directory
 
-**This system uses 100% REAL patient data - NO simulated or synthetic data.**
+> **Correction notice.** An earlier version of this file stated *"This system uses
+> 100% REAL patient data - NO simulated or synthetic data"* and closed with *"All of
+> this is REAL data from REAL patients."* **Both statements were false.** Several files
+> under `data/` are synthetically generated — some by scripts in this repository — and
+> a few carry `_real` in their filenames despite being synthetic. The former "UCI
+> Diabetes Dataset, 70 Type 1 patients" entry described data that is not the UCI
+> dataset and does not contain 70 real patients. This file now records what each
+> artefact actually is. **No synthetic file contributes to any reported result.**
 
-## Data Sources
+## Genuinely real patient data
 
-### 1. UCI Diabetes Dataset
-- **Source:** [UCI Machine Learning Repository](https://archive.ics.uci.edu/ml/datasets/diabetes)
-- **Citation:** Kahn, M. (1994). UCI Machine Learning Repository
-- **Patients:** 70 Type 1 Diabetes patients
-- **Duration:** Multiple weeks per patient
-- **Content:**
-  - Blood glucose measurements (multiple times daily)
-  - Insulin doses (Regular, NPH, UltraLente)
-  - Meal information (typical, large, small meals)
-  - Exercise records
-  - Hypoglycemic symptoms
-  - Special events
+### OhioT1DM — `../OhioT1DM/` (the only real T1D time series here)
 
-### 2. PIMA Indians Diabetes Dataset
-- **Source:** National Institute of Diabetes and Digestive and Kidney Diseases
-- **Citation:** Smith, J.W., et al. (1988). "Using the ADAP learning algorithm"
-- **Patients:** 768 Pima Indian women
-- **Content:**
-  - Plasma glucose concentration (oral glucose tolerance test)
-  - Diastolic blood pressure (mm Hg)
-  - Triceps skin fold thickness (mm)
-  - 2-Hour serum insulin (mu U/ml)
-  - Body mass index
-  - Diabetes pedigree function
-  - Age
-  - Diabetes diagnosis outcome
+The sole dataset behind every reported number.
 
-### 3. Diabetes 130-US Hospitals Dataset
-- **Source:** [UCI ML Repository](https://archive.ics.uci.edu/ml/datasets/diabetes+130-us+hospitals+for+years+1999-2008)
-- **Citation:** Strack, B., et al. (2014). "Impact of HbA1c Measurement"
-- **Records:** 101,766 patient encounters
-- **Duration:** 10 years (1999-2008)
-- **Hospitals:** 130 US hospitals
-- **Content:**
-  - 50+ clinical features
-  - Diagnoses (ICD-9 codes)
-  - Procedures
-  - Medications and dosage changes
-  - HbA1c measurements
-  - Laboratory results
-  - Hospital readmission outcomes
+- **12 subjects**: 2018 cohort {559, 563, 570, 575, 588, 591}, 2020 cohort
+  {540, 544, 552, 567, 584, 596}.
+- **166,443 CGM observations** at 5-minute resolution, plus basal and bolus insulin,
+  temporary basal, carbohydrates, exercise, sleep, work, and wearable channels.
+- **Official BGLP-challenge split**: the test files are the *same subjects* over the
+  next contiguous ~10 days. A temporal holdout, **not** subject-disjoint, and never
+  described here as cross-subject generalisation.
+- **The two cohorts use different protocols.** The 2020 challenge excludes the first
+  hour (12 samples) of each test file; 2018 does not. Applied per cohort in
+  `twin/data/ohio.py`.
+- **Requires a Data Use Agreement** with Ohio University. Not redistributable; this
+  directory is gitignored.
 
-### 4. CGM Trace Samples
-- **Source:** Research repositories (Digital Biomarker Discovery Pipeline)
-- **Content:**
-  - Real continuous glucose monitoring traces
-  - 5-minute interval readings
-  - Full daily glucose curves
+Limitations, all carried into `docs/RESULTS.md` rather than absorbed silently:
 
-## Data Format (After Parsing)
+- **Body weight is not identifiable.** Every file records `weight="99"`, a
+  de-identification placeholder. A nominal 70 kg is used, and the unknown true weight
+  is absorbed into the per-kilogram distribution volumes.
+- **Subject 567's test period contains no carbohydrate records at all**, so
+  carbohydrate-on-board is identically zero there.
+- **Subject 552's test coverage is 59.7%**, yielding far fewer valid windows.
+- **Bolus-wizard carbohydrate entries exist only for the 2018 cohort.** All six 2018
+  subjects have 111–176 usable records; all six 2020 subjects have none. Any analysis
+  depending on them is n = 6 and exploratory.
+- **Wearable channels differ by cohort.** 2018 carries `basis_heart_rate`,
+  `basis_steps` and `basis_air_temperature` with no `acceleration`; 2020 carries
+  `acceleration` with the Basis channels present but identically zero. Handled with
+  explicit availability masks, never zero-filled.
 
-### glucose_real.csv
-```
-patient_id,timestamp,glucose_mg_dl
-1,1991-04-21 08:00,120.0
-1,1991-04-21 12:00,185.0
-...
-```
+### PIMA Indians — `raw/pima/pima_diabetes.csv`
 
-### insulin_real.csv
-```
-patient_id,timestamp,dose_units,insulin_type
-1,1991-04-21 07:45,8.0,regular
-1,1991-04-21 22:00,15.0,NPH
-...
-```
+**Real** (768 records, verified against the canonical distribution). Cross-sectional,
+not a time series, unrelated to the CGM subjects. **Not used for any result.**
 
-### meals_real.csv
-```
-patient_id,timestamp,carbs_grams,meal_type
-1,1991-04-21 08:00,50.0,typical
-1,1991-04-21 12:30,75.0,large
-...
-```
+### Diabetes 130-US-Hospitals — `raw/diabetes_130_hospitals/`
 
-## Data Download
+**Real** (101,766 encounters; Strack et al. 2014). EHR encounters with no CGM and no
+subject overlap with OhioT1DM. **Not used for any result.** It cannot be joined to the
+CGM subjects, so a claim of "validated on data spanning CGM, insulin, clinical
+profiles, and EHR-derived glucose measures" would be unsupportable.
 
-The data is downloaded automatically when you run:
+## Synthetic, despite the naming
 
-```bash
-python scripts/setup.py
-```
+**None of the following contributes to any reported number.**
 
-Or download manually:
+| Path | What it actually is |
+|---|---|
+| `processed/glucose_real.csv` | **Synthetic.** Built by `scripts/build_real_training_data.py` from the synthetic sources below. The `_real` suffix is misleading. |
+| `processed/insulin_real.csv` | **Synthetic.** Same provenance. |
+| `processed/meals_real.csv` | **Synthetic.** Same provenance. |
+| `raw/uci_diabetes/data-01 … data-70` | **Synthetic, and not the UCI Diabetes dataset.** Generated by `scripts/generate_uci_format_data.py`, whose own docstring says it reshapes PIMA and 130-Hospitals data into a UCI-like format. All timestamps are 2018; the real UCI data is from 1991. `data-59` is a saved HTML error page, not data. |
+| `raw/cgm_traces/patient_*_cgm_trace.csv` | **Synthetic.** Generated by `scripts/generate_cgm_traces.py` with added circadian, meal and noise terms. |
+| `raw/simulated/` | **Synthetic**, and honestly named — UVA/Padova simglucose output. Note the generator has a meal-scheduler defect that produced ~0.6 meals per day instead of three, so this corpus is also wrong on its own terms. |
+| `vectors/` | ChromaDB store: 15 embeddings of author-paraphrased guideline text. Not ingested clinical guidelines. |
+| `digital_twin.db` | 8 test patients and 12 manual CGM rows from web/API smoke tests. No research value. |
+| `guidelines/` | Empty. |
 
-```bash
-python scripts/download_real_data.py
-```
+## Rule applied throughout
 
-## Ethical Use
+Reported results come from OhioT1DM only. Synthetic data may be used for pretraining
+or unit tests; where it is, that is stated explicitly and it never enters a results
+table. Simulation pretraining is declared as ablation A5 in
+`twin/train/ablations.py` and currently **raises on use**, blocked on fixing the
+meal-scheduler defect above — declared so it cannot be quietly dropped from the
+matrix, raising so it cannot silently run as something else.
 
-This data contains anonymized medical records from real patients. Please:
+## Ethical use
 
-1. **Do not attempt to re-identify patients**
-2. **Use only for research/educational purposes**
-3. **Cite the original data sources in publications**
-4. **Follow all applicable data protection regulations**
-
-## Statistics
-
-After parsing all datasets, you should have approximately:
-
-- **Glucose readings:** 10,000+ measurements
-- **Insulin doses:** 5,000+ records
-- **Meals:** 3,000+ records
-- **Clinical profiles:** 768+ patients (PIMA)
-- **EHR encounters:** 100,000+ records (130-Hospitals)
-
-All of this is **REAL** data from **REAL** patients.
+The OhioT1DM data are de-identified records from real patients. Do not attempt
+re-identification, use only under the terms of the Data Use Agreement, and cite the
+original source in any publication.

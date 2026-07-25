@@ -849,11 +849,37 @@ and the fix is a decision-theoretic one — an explicit, reported operating poin
 cost-sensitive decision rule applied *after* the forecast — not a tilt buried in the
 training loss where it would contaminate the safety metrics.
 
-**4. On method.** The first published explanation of this result would have been
-wrong. It was corrected only because A0 was run as a controlled arm rather than
+**4. On method.** The first explanation of this result would have been wrong. It was corrected only because A0 was run as a controlled arm rather than
 assumed to behave like the full model. Any mechanism attributed to a component of a
 composite model needs the ablation that isolates it -- which is the same argument that
 made A1 necessary for the PINN claim.
+
+### 9.1 What the completed ablation matrix showed
+
+The deficit is **not** uniform across arms, and the curriculum turned out to matter
+more than the physics:
+
+| arm | hypo sensitivity | hypo bias | MAE@30 |
+|---|---|---|---|
+| A0, no physics | 0.637 | +7.29 | 13.51 |
+| A3, hybrid **with** curriculum | 0.485 | +10.95 | 13.65 |
+| **A7, hybrid, no curriculum** | **0.608** | **+8.61** | **13.25** |
+
+Removing the data-first ramp cuts the physics-attributable bias from +3.66 to +1.32
+and recovers most of the lost sensitivity, while *improving* accuracy at every
+horizon. Ramping lets the model overfit on the data term for several epochs and then
+imposes the residual on an already-overfit trajectory, instead of regularising it
+from the start. So a substantial share of what looked like a cost of physics-informing
+was a cost of *my training schedule*.
+
+Two components remain, and both are reported:
+
+- **+7.29 mg/dL of regression toward the centre, present with no physics at all.**
+  Inherent to point forecasting under a mean-seeking loss. The remedy is
+  distributional — a quantile head or an explicit decision rule — not a tilt in the
+  objective.
+- **+1.32 mg/dL attributable to the Bergman constraint** in its best configuration,
+  via the `G_b` attractor described above.
 
 ---
 
