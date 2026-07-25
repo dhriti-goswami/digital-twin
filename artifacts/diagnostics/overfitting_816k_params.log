@@ -1,0 +1,23 @@
+=== official: {'train': 96842, 'val': 17184, 'test': 26498} ===
+epoch   1  train 108.5365  val MAE@30  15.25  mean  26.56 gate 0.106  ramp 0.00  70.1s
+  (selection and early stopping begin at epoch 26, once the curriculum is complete)
+epoch   2  train  87.1647  val MAE@30  15.38  mean  26.74 gate 0.110  ramp 0.00  44.0s
+epoch   3  train  75.2228  val MAE@30  15.29  mean  26.78 gate 0.113  ramp 0.00  45.1s
+epoch   4  train  64.7427  val MAE@30  15.45  mean  26.81 gate 0.117  ramp 0.00  44.5s
+epoch   5  train  55.4634  val MAE@30  15.24  mean  27.01 gate 0.120  ramp 0.00  44.0s
+epoch   6  train  47.6258  val MAE@30  15.31  mean  27.59 gate 0.124  ramp 0.01  44.3s
+epoch   7  train  41.3258  val MAE@30  15.52  mean  28.45 gate 0.128  ramp 0.02  44.3s
+epoch   8  train  35.7695  val MAE@30  15.41  mean  28.51 gate 0.131  ramp 0.05  44.2s
+epoch   9  train  31.1108  val MAE@30  15.41  mean  28.49 gate 0.135  ramp 0.10  44.3s
+epoch  10  train  27.2295  val MAE@30  15.45  mean  28.86 gate 0.138  ramp 0.15  44.5s
+epoch  11  train  23.7223  val MAE@30  15.60  mean  29.47 gate 0.143  ramp 0.21  80.7s
+epoch  12  train  20.6674  val MAE@30  15.93  mean  29.77 gate 0.147  ramp 0.27  80.7s
+epoch  13  train  18.0899  val MAE@30  15.72  mean  29.56 gate 0.153  ramp 0.35  81.9s
+epoch  14  train  15.9063  val MAE@30  15.95  mean  29.60 gate 0.159  ramp 0.42  81.9s
+epoch  15  train  13.9561  val MAE@30  16.08  mean  30.15 gate 0.167  ramp 0.50  81.4s
+epoch  16  train  12.3139  val MAE@30  16.47  mean  30.53 gate 0.175  ramp 0.58  81.1s
+epoch  17  train  10.8020  val MAE@30  16.77  mean  30.95 gate 0.184  ramp 0.65  80.1s
+epoch  18  train   9.5509  val MAE@30  16.64  mean  30.89 gate 0.194  ramp 0.73  80.4s
+epoch  19  train   8.4663  val MAE@30  16.80  mean  31.03 gate 0.204  ramp 0.79  80.4s
+epoch  20  train   7.5637  val MAE@30  16.85  mean  30.65 gate 0.214  ramp 0.85  80.5s
+epoch  21  train   6.7489  val MAE@30  17.12  mean  31.20 gate 0.225  ramp 0.90  80.6s

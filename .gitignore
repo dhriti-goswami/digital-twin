@@ -65,3 +65,7 @@ build/
 
 # Rebuild pipeline artifacts
 artifacts/
+
+# Diagnostic logs are kept: they document measured negative results.
+!artifacts/diagnostics/
+!artifacts/diagnostics/**

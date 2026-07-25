@@ -773,7 +773,51 @@ loop and no adjoint.
 
 ---
 
-## 9. Known gaps
+## 9. Model capacity and the effective sample size
+
+A measured result, recorded because it constrains what this dataset can support.
+
+**The window count overstates the sample size by two orders of magnitude.** The
+pipeline emits ~97,000 training windows, but consecutive windows share 23 of their
+24 input timesteps. The number of *independent* windows is closer to
+`135,000 slots / 48 steps ≈ 2,800` — one per non-overlapping window span. Against
+the default 816,024-parameter model that is a ratio near **300:1**.
+
+The consequence was unambiguous. Two full-size runs (`artifacts/diagnostics/`)
+showed training loss falling from 108 to 7.6 while validation degraded monotonically:
+
+| epoch | train loss | val MAE@30 | val mean | prior gate |
+|---|---|---|---|---|
+| 1 | 108.5 | **15.25** | 26.6 | 0.106 |
+| 5 | 55.5 | 15.42 | 27.3 | 0.120 |
+| 10 | 27.2 | 15.62 | 29.0 | 0.138 |
+| 15 | 14.0 | 15.72 | 29.6 | 0.167 |
+| 20 | 7.6 | **16.85** | 30.7 | 0.214 |
+
+By epoch 20 the 30-minute validation MAE had degraded to the level of persistence
+(16.87). Raising dropout from 0.1 to 0.2 changed the magnitude slightly and the
+*shape* not at all, which is what distinguishes a capacity problem from insufficient
+regularisation.
+
+`configs/official-small.yaml` therefore reduces the model to **79,192 parameters**
+(`d_model` 64, 2 layers, weight decay 0.03), bringing the ratio to roughly 28:1.
+
+Two points for the paper:
+
+- **This is a property of the dataset, not of the architecture.** Any model with
+  ~10⁵-10⁶ parameters trained on 12 subjects will meet the same ceiling. It is the
+  main reason a 12-subject benchmark cannot separate methods finely, and it is worth
+  stating rather than absorbing into a hyperparameter footnote.
+- **The learned prior gate rose monotonically throughout** (0.106 → 0.214) even as
+  the data fit overfitted. The optimiser increased its reliance on the mechanistic
+  forecast rather than discarding it, which is a genuine — if preliminary — signal
+  that the physics term carries information the data term was not supplying. The
+  A0-versus-A3 ablation is what will confirm or refute it; this observation is
+  suggestive only, and is reported as such.
+
+---
+
+## 10. Known gaps
 
 Disclosed rather than papered over:
 
