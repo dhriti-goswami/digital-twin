@@ -773,7 +773,61 @@ loop and no adjoint.
 
 ---
 
-## 9. Model capacity and the effective sample size
+## 9. Hypoglycaemia detection: why point accuracy is not safety
+
+The most consequential measured result, and it goes against the model.
+
+On the official protocol, the forecaster improves MAE by 17–19% over persistence at
+every horizon, in **12 of 12 subjects**, with **89.0% Clarke zone A** and **0.000%
+zone E**. On the same predictions, **hypoglycaemia detection is worse than
+persistence**:
+
+| | event-weighted sensitivity at 30 min |
+|---|---|
+| Persistence | **0.581** |
+| Forecaster | **0.471** |
+
+over 728 actual hypoglycaemic events across the cohort. The model misses 53% of
+them where persistence misses 42%, and systematically under-predicts time below
+range (mean −0.93 pp, worst −3.88 pp for subject 567).
+
+**Mechanism.** A Huber (or any mean-seeking) loss estimates the conditional mean.
+Hypoglycaemia is a rare tail event, so the mean-optimal forecast is pulled away from
+it. Persistence has no such pull: when the subject is currently low it predicts low
+and is credited. Critically, `cv_ratio` is 0.964 — the model is **not** globally
+flattening its output. The compression is specific to the hypoglycaemic tail, which
+is a sharper diagnosis than generic excursion compression.
+
+Three consequences, all of which belong in the paper rather than a footnote.
+
+**1. Clarke zone A is a poor safety metric.** 89% zone A and 0% zone E, while half
+the hypoglycaemia goes undetected. Zone A rewards being close on average; it does not
+ask whether the clinically actionable events were caught. Any safety claim resting on
+zone A — including the one in the original draft — asserts more than the number
+supports. Event-level sensitivity must be reported beside it.
+
+**2. Declining the asymmetric training penalty is what made this visible.** Had the
+legacy `clinical_penalty_loss` (or a corrected version of it) been in the objective,
+the model would have been pushed toward the hypoglycaemic tail, zone A would have
+risen, and the weakness would have been hidden behind a better-looking safety table.
+The metric measured something real precisely because it was not optimised. This is
+the concrete vindication of the rule in §4.4.
+
+**3. The honest framing of the contribution changes.** The model is a better
+*estimator* than persistence and a worse *detector*. For a forecasting paper that is
+reportable as-is. For any claim of clinical utility it is disqualifying until fixed,
+and the fix is a decision-theoretic one — an explicit, reported operating point or a
+cost-sensitive decision rule applied *after* the forecast — not a tilt buried in the
+training loss where it would contaminate the safety metrics.
+
+The ablation matrix tests whether this deficit is uniform across arms. If it appears
+in A0 (no physics) as well, it is a property of the mean-seeking objective rather
+than of the physics-guided architecture, and should be reported as a general finding
+about CGM forecasting objectives.
+
+---
+
+## 10. Model capacity and the effective sample size
 
 A measured result, recorded because it constrains what this dataset can support.
 
