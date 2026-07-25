@@ -1,0 +1,58 @@
+# Reduced-capacity variant of configs/official.yaml.
+#
+# Motivation, from measured overfitting rather than preference: OhioT1DM gives 12
+# subjects and ~135k grid slots, and consecutive windows share 23 of their 24 input
+# timesteps. The effective number of independent windows is therefore closer to
+# 135,000 / 48 ~= 2,800 than to the 97,000 emitted -- against 816k parameters in the
+# default configuration, a ratio near 300:1.
+#
+# Both full-size runs showed the signature: training loss falling more than 4x while
+# the across-horizon validation mean rose ~11%. Raising dropout from 0.1 to 0.2 did
+# not change the shape, which points at capacity rather than regularisation strength.
+#
+# This variant is ~5x smaller. Selected on validation only; the test split is
+# untouched. If it does not close the gap to the published field, that is reported
+# as a limitation of 12-subject training data rather than tuned around.
+run:
+  name: official-small
+  seed: 42
+  deterministic: true
+  device: auto
+  out_root: artifacts
+
+data:
+  dataset: ohio
+  root: OhioT1DM
+  grid_minutes: 5
+  seq_len: 24
+  horizons_min: [30, 60, 90, 120]
+  max_interp_gap: 2
+  min_input_coverage: 0.9
+
+split:
+  protocol: official
+  val_fraction: 0.15
+  purge_steps: null
+
+model:
+  kind: pinn
+  d_model: 64
+  n_layers: 2
+  n_heads: 4
+  d_ff: 128
+  dropout: 0.2
+  n_spline_basis: 12
+  pooling: attention
+  hybrid_residual: true
+  per_patient_params: true
+
+train:
+  epochs: 70
+  batch_size: 256
+  lr: 0.0005
+  weight_decay: 0.03
+  grad_clip: 1.0
+  early_stopping_patience: 12
+  num_workers: 3
+  data_loss: huber
+  huber_delta: 10.0
