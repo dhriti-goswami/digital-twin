@@ -730,29 +730,115 @@ $+10.95$ further up. We measured the sign before implementing, and did not imple
 
 ### 5.1 Honest positioning
 
-`VERIFIED-PRIMARY` benchmarks from [`CITATIONS_benchmarks.md`](CITATIONS_benchmarks.md):
+Every benchmark below is `VERIFIED-PRIMARY`, transcribed from the paper's own results
+table into [`CITATIONS_benchmarks.md`](CITATIONS_benchmarks.md). All rows use the
+**official organiser-provided split**, per-subject models, mean of per-subject errors,
+scored **at** the horizon endpoint. All values mg/dL, lower is better. Full tables with
+per-entry footnotes are in [`RESULTS.md`](RESULTS.md) §8.
 
-| Method | RMSE@30 | MAE@30 | RMSE@60 | MAE@60 |
-|---|---|---|---|---|
-| Freiburghaus CNN/LSTM ‡ | **17.45** | **11.22** | 33.67 | 23.25 |
-| Rubin-Falcone N-BEATS+BiLSTM | **18.22** | **12.83** | 31.66 | 23.60 |
-| Bevan & Coenen LSTM (*non-personalised*) | 18.23 | 14.37 | 31.10 | 25.75 |
-| Pavan NN-EIM ‡ | 18.63 | 10.08 | 32.27 | 17.69 |
-| Yang MS-LSTM | 19.05 | 13.50 | 32.03 | 23.83 |
-| **This work — official protocol** | **18.84** | **13.08** | **30.52** | **21.98** |
-| Persistence (validated, 2 sources) | 22.5 | 16.87 | 36.6 | 28.22 |
+**The two cohorts are never averaged.** The 2020 protocol excludes the first hour of each
+test file and 2018 does not, so a pooled 12-subject figure is not comparable to either
+published table. Our rows are recomputed per cohort with the 2020 exclusion applied. The
+`#` column is our rank **including our own row**, so placing our result last does not
+imply it is best.
 
-‡ flagged: Pavan's MAE/RMSE ratio (0.54 overall, 0.39 for one subject) is far out of
-family with every other entry; Freiburghaus is a single best-config figure.
+#### 2020 cohort — 540 / 544 / 552 / 567 / 584 / 596
 
-**We do not claim state of the art.** At 30 minutes we are mid-field: MAE 13.08 behind
-Rubin-Falcone (12.83) and Freiburghaus (11.22); RMSE 18.84 behind both.
+| # | Study | Model family | RMSE@30 | MAE@30 | RMSE@60 | MAE@60 |
+|---|---|---|---:|---:|---:|---:|
+| 1 | Freiburghaus et al. ‡ | CNN/LSTM | 17.45 | 11.22 | 33.67 | 23.25 |
+| 2 | Rubin-Falcone, Fox & Wiens † | N-BEATS + BiLSTM | 18.22 | 12.83 | 31.66 | 23.60 |
+| 3 | Bevan & Coenen † | LSTM (non-personalised) | 18.23 | 14.37 | **31.10** | 25.75 |
+| 4 | Zhu et al. | GAN (GRU + 1D-CNN) | 18.34 | 13.37 | 32.31 | 24.20 |
+| 5 | Pavan et al. ‡ | Shallow NN + error imputation | 18.63 | 10.08 | 32.27 | 17.69 |
+| 6 | Nemat et al. | Stacked regression + activity | 18.99 | 13.73 | 33.39 | 25.04 |
+| 7 | Yang et al. | Multi-scale LSTM | 19.05 | 13.50 | 32.03 | 23.83 |
+| 8 | Khadem et al. | Multi-lag stacking | 19.21 | 13.93 | 33.65 | 25.31 |
+| 9 | Sun et al. | Latent-variable statistical | 19.37 | 13.76 | 32.59 | 24.64 |
+| 10 | Mayo & Koutny (+2018 data) †§ | Multi-class LSTM | 19.40 | 13.90 | 33.40 | 25.00 |
+| 11 | Joedicke et al. ‖ | Genetic programming | 19.60 | 14.25 | 32.04 | 23.58 |
+| 12 | Daniels, Herrero & Georgiou | Multitask CRNN | 19.79 | 13.62 | 33.73 | 24.54 |
+| 13 | Mayo & Koutny § | Multi-class LSTM | 19.80 | 14.40 | 34.00 | 25.80 |
+| 14 | Ma et al. ¶ | Online ARMA + residual net | 20.03 | 14.52 | 34.89 | 24.61 |
+| 15 | Cappon et al. | Personalised interpretable LSTM | 20.20 | 14.74 | 34.19 | 25.98 |
+| 16 | Daniels et al. (ablation) | Single-task CRNN | 20.67 | 14.28 | 34.40 | 24.67 |
+| 17 | Bhimireddy et al. | Seq2Seq BiLSTM | 21.80 | 15.00 | 35.00 | 25.00 |
+| **6** | **This work** | **Physics-guided PINN (Bergman) + Transformer** | **18.74** | **13.24** | **31.16** | **22.55** |
+| — | *Persistence (ours)* | *naive* | 24.22 | 17.45 | 40.11 | 29.51 |
 
-**At 60 minutes we are nominally ahead of every entry we could verify** — RMSE 30.52 vs
-the best 31.10, MAE 21.98 vs 23.25. We deliberately do not headline this: our window
-eligibility is stricter than anyone's (targets must be real observations at exactly the
-nominal horizon, no forward-filling), the net direction of that mismatch is unknown, so
-a 0.6–1.3 mg/dL edge sits inside the induced uncertainty.
+#### 2018 cohort — 559 / 563 / 570 / 575 / 588 / 591
+
+MAE was rarely reported in 2018, which is itself informative: the field's own MAE history
+on this cohort is thin.
+
+| # | Study | Model family | RMSE@30 | MAE@30 | RMSE@60 | MAE@60 |
+|---|---|---|---:|---:|---:|---:|
+| 1 | Gu, Dang & Prioleau | Physiology-informed conv + LSTM | 17.80 | — | — | — |
+| 2 | Chen et al. ¶ | Dilated RNN (best of 10) | 18.91 | — | — | — |
+| 3 | Chen et al. | Dilated RNN (mean of 10) | 19.04 | — | — | — |
+| 4 | Bertachi et al. | Physiological model + ANN | 19.33 | — | 31.72 | — |
+| 5 | Xie & Wang | SVR-RBF, recursive | 19.53 | — | — | — |
+| 6 | Xie & Wang | Ridge / linear regression | 19.62 | — | — | — |
+| 7 | Martinsson et al. | LSTM (MSE loss) | 20.10 | — | 33.20 | — |
+| 8 | Midroni et al. | XGBoost | 20.38 | — | — | — |
+| 9 | Martinsson et al. | LSTM (NLL loss) | 20.70 | — | 33.60 | — |
+| 10 | Mayo & Koutny § | Multi-class LSTM | 20.70 | 14.30 | 32.80 | 24.20 |
+| 11 | Contreras et al. | Grammatical evolution | 21.19 | — | **31.34** | — |
+| 12 | Zhu et al. | WaveNet-style CNN | 21.73 | — | — | — |
+| **3** | **This work** | **Physics-guided PINN (Bergman) + Transformer** | **18.93** | **12.92** | **29.89** | **21.42** |
+| — | *Persistence (ours)* | *naive* | 22.52 | 16.28 | 36.19 | 26.92 |
+
+Our persistence row reproduces Martinsson's published 22.5 ± 2.2 and Xie & Wang's
+22.54 ± 2.25 to **0.02 mg/dL**, and 36.19 against Martinsson's 36.6 at 60 min.
+
+**Footnotes.** † extra training data beyond OhioT1DM. ‡ not safely comparable — Pavan's
+MAE/RMSE ratio is 0.54 overall and 0.39 for one subject, far out of family with every
+other entry (all 0.68–0.75), over an un-imputed and possibly partial test set;
+Freiburghaus reports a single best configuration. § scored set reduced by dropping gapped
+windows. ¶ best-of-runs rather than mean. ‖ best column per metric across many variants.
+
+#### What the tables show
+
+**We do not claim state of the art at 30 minutes.** We rank 6 of 18 on the 2020 cohort
+and 3 of 13 on 2018. Of the three entries ahead of us on MAE@30, two carry the `‡` flag;
+the one clean entry ahead is Rubin-Falcone at 12.83, pre-trained on Tidepool plus the
+2018 cohort.
+
+**At 60 minutes the result is stronger and is the best accuracy claim available.** On the
+2018 cohort RMSE@60 of 29.89 beats the best published 31.34 by 1.45, and MAE@60 of 21.42
+has no published competitor on that cohort at all. On the 2020 cohort RMSE@60 of 31.16 is
+a tie with Bevan & Coenen (31.10), while MAE@60 of 22.55 leads everything except the
+flagged Pavan entry.
+
+**A correction.** An earlier version of this document reported RMSE@60 = 30.52 as ahead of
+every verified entry. That figure pooled both cohorts, which the protocol difference
+forbids. Recomputed per cohort the 2020 lead disappears; the MAE@60 result survives, the
+RMSE@60 claim does not.
+
+**Why we still do not headline 60 minutes.** Our window eligibility is stricter than any
+published entry's — every target must be a real observation at exactly the nominal
+horizon, no forward-filling, no interpolated targets — and several benchmark entries
+explicitly relax this. The net direction of the mismatch is unknown, so a 1–2 mg/dL edge
+sits inside the uncertainty it introduces.
+
+#### What no benchmark entry reports
+
+Empty cells are not failures by those authors; these metrics were not part of the
+challenge protocol. But the emptiness is the argument — a leaderboard of MAE cannot tell a
+clinician whether a model is safe.
+
+| Reported quantity | Any benchmark entry | **This work** |
+|---|---|---|
+| MAE / RMSE at 30 and 60 min | yes | **yes** |
+| RMSE / MAE at 90 and 120 min | **no protocol-matched value exists** | **yes** |
+| $R^2$ | not reported by any entry | **0.885** at 30 min |
+| Clarke zone A % | rarely, never with all five zones | **89.8%** |
+| Clarke zone E % | not reported | **0.000%** |
+| Calibrated prediction interval | not reported | **9.5% / 88.9% observed vs 10 / 90 nominal** |
+| Event-level hypoglycaemia sensitivity | not reported | **0.928** |
+| Patient-specific physiological parameter | not reported | **$S_I$, three pre-registered checks** |
+| Subject-disjoint (LOSO) result | not reported | **yes** |
+| Validated persistence baseline | **no entry validates its baseline** | **yes, to 0.02–0.26 mg/dL** |
 
 ### 5.2 Where the work *is* ahead, defensibly
 

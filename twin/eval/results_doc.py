@@ -47,13 +47,59 @@ ALARM_BY_SUBJECT = [
     (591, 120, 0.317, 0.867), (596, 54, 0.204, 0.852),
 ]
 
-PUBLISHED = [
-    ("Freiburghaus CNN/LSTM ‡", "**17.45**", "**11.22**", "33.67", "23.25"),
-    ("Rubin-Falcone N-BEATS + BiLSTM", "**18.22**", "**12.83**", "31.66", "23.60"),
-    ("Bevan & Coenen LSTM (*non-personalised*)", "18.23", "14.37", "31.10", "25.75"),
-    ("Pavan NN-EIM ‡", "18.63", "10.08", "32.27", "17.69"),
-    ("Yang MS-LSTM", "19.05", "13.50", "32.03", "23.83"),
+# Published benchmarks, transcribed from CITATIONS_benchmarks.md. Fields:
+# (author/method, family, rmse30, mae30, rmse60, mae60).
+#
+# The two challenge cohorts are kept SEPARATE and never averaged: the 2020 protocol
+# excludes the first hour of each test file and the 2018 protocol does not, so a pooled
+# 12-subject figure is not comparable to either published table. Our own rows below are
+# recomputed per cohort from the per-subject CSV for the same reason.
+PUBLISHED_2020 = [
+    ("Freiburghaus et al. ‡", "CNN/LSTM", 17.45, 11.22, 33.67, 23.25),
+    ("Rubin-Falcone, Fox & Wiens †", "N-BEATS + BiLSTM", 18.22, 12.83, 31.66, 23.60),
+    ("Bevan & Coenen †", "LSTM (non-personalised)", 18.23, 14.37, 31.10, 25.75),
+    ("Zhu et al.", "GAN (GRU + 1D-CNN)", 18.34, 13.37, 32.31, 24.20),
+    ("Pavan et al. ‡", "Shallow NN + error imputation", 18.63, 10.08, 32.27, 17.69),
+    ("Nemat et al.", "Stacked regression + activity", 18.99, 13.73, 33.39, 25.04),
+    ("Yang et al.", "Multi-scale LSTM", 19.05, 13.50, 32.03, 23.83),
+    ("Khadem et al.", "Multi-lag stacking", 19.21, 13.93, 33.65, 25.31),
+    ("Sun et al.", "Latent-variable statistical", 19.37, 13.76, 32.59, 24.64),
+    ("Mayo & Koutny (+2018 data) †§", "Multi-class LSTM", 19.40, 13.90, 33.40, 25.00),
+    ("Joedicke et al. ‖", "Genetic programming", 19.60, 14.25, 32.04, 23.58),
+    ("Daniels, Herrero & Georgiou", "Multitask CRNN", 19.79, 13.62, 33.73, 24.54),
+    ("Mayo & Koutny §", "Multi-class LSTM", 19.80, 14.40, 34.00, 25.80),
+    ("Ma et al. ¶", "Online ARMA + residual net", 20.03, 14.52, 34.89, 24.61),
+    ("Cappon et al.", "Personalised interpretable LSTM", 20.20, 14.74, 34.19, 25.98),
+    ("Daniels et al. (ablation)", "Single-task CRNN", 20.67, 14.28, 34.40, 24.67),
+    ("Bhimireddy et al.", "Seq2Seq BiLSTM", 21.80, 15.00, 35.00, 25.00),
 ]
+
+PUBLISHED_2018 = [
+    ("Gu, Dang & Prioleau", "Physiology-informed conv + LSTM", 17.80, None, None, None),
+    ("Chen et al. ¶", "Dilated RNN (best of 10)", 18.91, None, None, None),
+    ("Chen et al.", "Dilated RNN (mean of 10)", 19.04, None, None, None),
+    ("Bertachi et al.", "Physiological model + ANN", 19.33, None, 31.72, None),
+    ("Xie & Wang", "SVR-RBF, recursive", 19.53, None, None, None),
+    ("Xie & Wang", "Ridge / linear regression", 19.62, None, None, None),
+    ("Martinsson et al.", "LSTM (MSE loss)", 20.10, None, 33.20, None),
+    ("Midroni et al.", "XGBoost", 20.38, None, None, None),
+    ("Martinsson et al.", "LSTM (NLL loss)", 20.70, None, 33.60, None),
+    ("Mayo & Koutny §", "Multi-class LSTM", 20.70, 14.30, 32.80, 24.20),
+    ("Contreras et al.", "Grammatical evolution", 21.19, None, 31.34, None),
+    ("Zhu et al.", "WaveNet-style CNN", 21.73, None, None, None),
+]
+
+#: Post-challenge, all 12 subjects, official split. Comparable to our pooled row only.
+PUBLISHED_POST = [
+    ("Piao et al. 2025", "GARNN (GATv2 + GRU)", 18.97, 13.34),
+    ("Piao et al. (baseline)", "NHiTS", 20.14, 14.07),
+    ("Piao et al. (baseline)", "N-BEATS", 20.15, 14.11),
+    ("Piao et al. (baseline)", "IMV-TENSOR", 20.15, 14.00),
+    ("Piao et al. (baseline)", "RETAIN", 20.30, 14.41),
+    ("Piao et al. (baseline)", "Linear regression", 22.19, 15.92),
+]
+
+COHORT_2018 = {559, 563, 570, 575, 588, 591}
 
 
 def fmt(value: float, decimals: int = 2) -> str:
@@ -647,56 +693,230 @@ def build() -> str:  # noqa: PLR0915 - a document generator is legitimately long
 
     # --------------------------------------------------------- comparison
     add("---\n\n## 8. Comparison with published work\n")
-    add("`VERIFIED-PRIMARY` benchmarks from [`CITATIONS_benchmarks.md`](CITATIONS_benchmarks.md).\n")
-    add("| Method | RMSE@30 | MAE@30 | RMSE@60 | MAE@60 |\n|---|---|---|---|---|")
-    for name, r30, m30, r60, m60 in PUBLISHED:
-        add(f"| {name} | {r30} | {m30} | {r60} | {m60} |")
+    add(
+        "All benchmarks are `VERIFIED-PRIMARY`, transcribed from each paper's own results "
+        "table into [`CITATIONS_benchmarks.md`](CITATIONS_benchmarks.md). Every row uses the "
+        "**official organiser-provided train/test split**, per-subject models, mean of "
+        "per-subject errors, scored **at** the horizon endpoint. All values mg/dL, lower is "
+        "better.\n"
+    )
+    add(
+        "**The two challenge cohorts are tabled separately and never averaged.** The 2020 "
+        "protocol excludes the first hour (12 points) of each test file and the 2018 protocol "
+        "does not, so a pooled 12-subject number is not comparable to either published table. "
+        "Our rows are therefore recomputed per cohort, with the 2020 exclusion applied.\n"
+    )
+
+    def cohort_view(frame: pd.DataFrame, cohort: str) -> pd.DataFrame:
+        return frame[frame["cohort"].astype(str) == cohort]
+
+    def cohort_row(frame: pd.DataFrame, cohort: str, horizon: int, column: str) -> float:
+        return agg(cohort_view(frame, cohort), horizon, column)[0]
+
+    def comparison_table(
+        entries: list[tuple], cohort: str, *, with_60: bool
+    ) -> tuple[int, int]:
+        """Emit one cohort table with our row last; return our (RMSE, MAE) rank at 30 min."""
+        ours = {
+            "r30": cohort_row(model, cohort, 30, "rmse"),
+            "m30": cohort_row(model, cohort, 30, "mae"),
+            "r60": cohort_row(model, cohort, 60, "rmse"),
+            "m60": cohort_row(model, cohort, 60, "mae"),
+        }
+        header = "| # | Study | Model family | RMSE@30 | MAE@30 |"
+        rule = "|---|---|---|---:|---:|"
+        if with_60:
+            header += " RMSE@60 | MAE@60 |"
+            rule += "---:|---:|"
+        add(header + "\n" + rule)
+
+        # Rank by RMSE@30 over published entries plus our own, so position is explicit
+        # rather than implied by table order.
+        r30_all = sorted([e[2] for e in entries] + [ours["r30"]])
+        m30_all = sorted([e[3] for e in entries if e[3] is not None] + [ours["m30"]])
+        rmse_rank = r30_all.index(ours["r30"]) + 1
+        mae_rank = m30_all.index(ours["m30"]) + 1
+
+        for index, entry in enumerate(sorted(entries, key=lambda e: e[2]), start=1):
+            name, family, r30, m30, r60, m60 = entry
+            cells = [
+                str(index),
+                name,
+                family,
+                fmt(r30),
+                "—" if m30 is None else fmt(m30),
+            ]
+            if with_60:
+                cells += [
+                    "—" if r60 is None else fmt(r60),
+                    "—" if m60 is None else fmt(m60),
+                ]
+            add("| " + " | ".join(cells) + " |")
+
+        cells = [
+            f"**{rmse_rank}**",
+            "**This work**",
+            "**Physics-guided PINN (Bergman) + Transformer**",
+            f"**{fmt(ours['r30'])}**",
+            f"**{fmt(ours['m30'])}**",
+        ]
+        if with_60:
+            cells += [f"**{fmt(ours['r60'])}**", f"**{fmt(ours['m60'])}**"]
+        add("| " + " | ".join(cells) + " |")
+
+        pr30 = cohort_row(persistence, cohort, 30, "rmse")
+        pm30 = cohort_row(persistence, cohort, 30, "mae")
+        pr60 = cohort_row(persistence, cohort, 60, "rmse")
+        pm60 = cohort_row(persistence, cohort, 60, "mae")
+        cells = ["—", "*Persistence baseline (ours)*", "*naive*", fmt(pr30), fmt(pm30)]
+        if with_60:
+            cells += [fmt(pr60), fmt(pm60)]
+        add("| " + " | ".join(cells) + " |")
+        add("")
+        return rmse_rank, mae_rank
+
+    add("### 8.1 2020 challenge cohort — subjects 540 / 544 / 552 / 567 / 584 / 596\n")
+    add(
+        "The larger and more competitive table: 17 published entries, MAE reported "
+        "throughout. **The `#` column is our rank by RMSE@30 including our own row**, so "
+        "placing our result last does not imply it is best.\n"
+    )
+    rank_r20, rank_m20 = comparison_table(PUBLISHED_2020, "2020", with_60=True)
+
+    add("### 8.2 2018 challenge cohort — subjects 559 / 563 / 570 / 575 / 588 / 591\n")
+    add(
+        "MAE was rarely reported in 2018, so most cells are empty — that absence is itself "
+        "worth noting, since it means the field's own MAE history on this cohort is thin.\n"
+    )
+    rank_r18, _ = comparison_table(PUBLISHED_2018, "2018", with_60=True)
+
+    add("### 8.3 Post-challenge, all 12 subjects\n")
+    add(
+        "Piao et al. 2025 train on the official split but score all 12 subjects, so this is "
+        "the one table our pooled figure can join.\n"
+    )
+    add("| # | Study | Model family | RMSE@30 | MAE@30 |\n|---|---|---|---:|---:|")
     om30, _ = agg(model, 30, "mae")
     orr30, _ = agg(model, 30, "rmse")
     om60, _ = agg(model, 60, "mae")
     orr60, _ = agg(model, 60, "rmse")
     lm30, _ = agg(loso, 30, "mae")
     lr30, _ = agg(loso, 30, "rmse")
-    lm60, _ = agg(loso, 60, "mae")
-    lr60, _ = agg(loso, 60, "rmse")
+    post_rank = sorted([e[2] for e in PUBLISHED_POST] + [orr30]).index(orr30) + 1
+    for index, (name, family, r30, m30) in enumerate(
+        sorted(PUBLISHED_POST, key=lambda e: e[2]), start=1
+    ):
+        add(f"| {index} | {name} | {family} | {fmt(r30)} | {fmt(m30)} |")
     add(
-        f"| **This work — official protocol** | **{fmt(orr30)}** | **{fmt(om30)}** | "
-        f"**{fmt(orr60)}** | **{fmt(om60)}** |"
+        f"| **{post_rank}** | **This work** | **Physics-guided PINN + Transformer** | "
+        f"**{fmt(orr30)}** | **{fmt(om30)}** |"
     )
     add(
-        f"| **This work — LOSO (subject-disjoint)** | {fmt(lr30)} | {fmt(lm30)} | "
-        f"{fmt(lr60)} | {fmt(lm60)} |"
+        f"| — | *This work — LOSO (subject-disjoint)* | *same model, no subject overlap* | "
+        f"*{fmt(lr30)}* | *{fmt(lm30)}* |"
     )
-    add("| Persistence (validated, 2 sources) | 22.5 | 16.87 | 36.6 | 28.22 |")
     add("")
     add(
-        "‡ **Flagged.** Pavan's MAE/RMSE ratio is 0.54 overall and 0.39 for one subject, far "
-        "out of family with every other entry (all 0.68–0.75), and their test set is "
-        "un-imputed with a reduced predicted-sample count. Freiburghaus is a single "
-        "best-config figure.\n"
-    )
-    add("### 8.1 Where we stand — stated plainly\n")
-    add(
-        f"**At 30 minutes we are mid-field, not state of the art.** MAE {fmt(om30)} sits behind "
-        "Rubin-Falcone (12.83) and Freiburghaus (11.22); RMSE "
-        f"{fmt(orr30)} behind both and essentially tied with Yang (19.05). We do beat a "
-        "non-personalised LSTM on MAE, and we clearly beat persistence.\n"
+        "**Read this table with care.** We lead it, but five of the six rows are Piao et al.'s "
+        "*own* baselines rather than independently-tuned published systems; the only genuine "
+        "competitor is GARNN at 18.97 / 13.34, which we edge by 0.13 RMSE and 0.26 MAE. That "
+        "margin is far smaller than the between-subject spread (± 2.58 RMSE) and should be "
+        "read as a tie, not a win.\n"
     )
     add(
-        f"**At 60 minutes we are nominally ahead of every entry we could verify** — RMSE "
-        f"{fmt(orr60)} vs the best published 31.10, MAE {fmt(om60)} vs 23.25. **We deliberately "
-        "do not headline this.** Our window eligibility is stricter than anyone's (targets must "
-        "be real observations at exactly the nominal horizon, no forward-filling), the net "
-        "direction of that mismatch is unknown, and a 0.6–1.3 mg/dL edge sits inside the "
-        "uncertainty it introduces.\n"
+        "**The LOSO row is not comparable to anything above it** and is included only to show "
+        "the cost of removing personalisation — MAE rises from "
+        f"{fmt(om30)} to {fmt(lm30)} when the test subject's own history is withheld. No "
+        "published OhioT1DM entry we found reports a subject-disjoint result at all.\n"
+    )
+
+    add("#### Footnotes to the benchmark tables\n")
+    add(
+        "- **†** *Extra training data.* Rubin-Falcone et al. pre-train on Tidepool plus the "
+        "2018 cohort; Bevan & Coenen train non-personalised models across patients; Mayo & "
+        "Koutny's second round adds the 2018 cohort. All legal under challenge rules, but none "
+        "is an OhioT1DM-only model.\n"
+        "- **‡** *Not safely comparable.* Pavan's MAE/RMSE ratio is 0.54 overall and 0.39 for "
+        "one subject, far out of family with every other entry (all 0.68–0.75); their test set "
+        "is un-imputed and they predict fewer than all available samples, so the MAE may be "
+        "over a subset. Freiburghaus is a single best-config figure and elsewhere quotes "
+        "RMSE 13.34 / MAE 9.08 for selected curves.\n"
+        "- **§** Mayo & Koutny discard every test example containing a gap, so their scored set "
+        "is smaller than the official one.\n"
+        "- **¶** *Best-of-runs.* Ma et al. and Chen et al. report the best across seeds, which "
+        "is optimistically biased; Chen's honest mean is 19.04 against a best-of-10 of 18.91.\n"
+        "- **‖** Joedicke et al. report many genetic-programming variants; the best column per "
+        "metric was taken, so the variant identity is uncertain.\n"
+        "- **Excluded entirely:** Karagoz et al. 2025 (RMSE@30 15.81 / MAE 9.67) average error "
+        "over prediction steps 5→30 min instead of measuring *at* 30 min, which fully explains "
+        "the apparent lead; and several results circulating at RMSE@30 ≈ 1.4–9.4 mg/dL are "
+        "below CGM sensor noise and are almost certainly leakage.\n"
+    )
+
+    add("### 8.4 What the tables actually show\n")
+    add(
+        f"**At 30 minutes we are competitive but not state of the art.** On the 2020 cohort we "
+        f"rank **{rank_r20} of {len(PUBLISHED_2020) + 1}** by RMSE@30 and "
+        f"**{rank_m20} of {len([e for e in PUBLISHED_2020 if e[3] is not None]) + 1}** by "
+        "MAE@30. Of the three entries ahead of us on MAE, two are the `‡`-flagged figures we "
+        "argue are not safely comparable; the one clean entry ahead is Rubin-Falcone at 12.83, "
+        "which was pre-trained on Tidepool plus the 2018 cohort. On the 2018 cohort we rank "
+        f"**{rank_r18} of {len(PUBLISHED_2018) + 1}**, behind Gu's physiology-informed "
+        "encoder (17.80) and Chen's best-of-10 dilated RNN (18.91).\n"
     )
     add(
-        "**One protocol caution for readers comparing tables.** Karagoz et al. 2025 report "
-        "RMSE@30 = 15.81 / MAE 9.67, apparently beating the entire field — but their error is "
-        "averaged over prediction steps 5→30 min rather than measured *at* 30 min, which fully "
-        "explains the gap. Such entries are excluded here.\n"
+        "**At 60 minutes the picture is better and is the strongest accuracy claim available.** "
+        "On the 2018 cohort our RMSE@60 of "
+        f"{fmt(cohort_row(model, '2018', 60, 'rmse'))} is ahead of the best published value "
+        "(31.34, Contreras) by a clear margin, and our MAE@60 of "
+        f"{fmt(cohort_row(model, '2018', 60, 'mae'))} has no published competitor on that "
+        "cohort at all. On the 2020 cohort our RMSE@60 of "
+        f"{fmt(cohort_row(model, '2020', 60, 'rmse'))} is essentially tied with Bevan & "
+        "Coenen (31.10), while our MAE@60 of "
+        f"{fmt(cohort_row(model, '2020', 60, 'mae'))} leads every entry except the flagged "
+        "Pavan figure.\n"
     )
-    add("### 8.2 Where the work is genuinely ahead\n")
+    add(
+        "**A correction we owe the reader.** An earlier version of this document claimed we "
+        "were ahead of every verified entry on RMSE@60, using a pooled 12-subject figure of "
+        f"{fmt(orr60)}. Recomputing per cohort — which is the only protocol-valid comparison — "
+        "removes that lead on the 2020 cohort. The MAE@60 result survives; the RMSE@60 claim "
+        "does not.\n"
+    )
+    add(
+        "**Why we still do not headline the 60-minute result.** Our window eligibility is "
+        "stricter than any published entry's: every target must be a real observation at "
+        "exactly the nominal horizon, with no forward-filling and no interpolated targets. "
+        "Several benchmark entries explicitly relax this. The net direction of that mismatch "
+        "is unknown, so a 1–2 mg/dL edge sits inside the uncertainty it introduces.\n"
+    )
+
+    add("### 8.5 What no benchmark entry reports\n")
+    add(
+        "The columns below are the reason this comparison is not purely about point error. "
+        "Empty cells are **not** failures by those authors — the metrics were simply not part "
+        "of the challenge protocol. But the emptiness is the argument: a leaderboard of MAE "
+        "cannot tell a clinician whether a model is safe.\n"
+    )
+    a30, _ = agg(model, 30, "clarke_zone_A_pct")
+    e30, _ = agg(model, 30, "clarke_zone_E_pct")
+    r2_30, _ = agg(model, 30, "r2")
+    add(
+        "| Reported quantity | Any benchmark entry | **This work** |\n"
+        "|---|---|---|"
+    )
+    add("| MAE / RMSE at 30 and 60 min | yes | **yes** |")
+    add("| RMSE / MAE at 90 and 120 min | **no protocol-matched value exists** | **yes** |")
+    add(f"| $R^2$ | not reported by any entry | **{fmt(r2_30, 3)}** at 30 min |")
+    add(f"| Clarke zone A % | rarely, never with all five zones | **{fmt(a30, 1)}%** |")
+    add(f"| Clarke zone E % (dangerous reversals) | not reported | **{fmt(e30, 3)}%** |")
+    add("| Calibrated prediction interval | not reported | **10th/90th percentile, 9.5% / 88.9% observed** |")
+    add("| Event-level hypoglycaemia sensitivity | not reported | **0.928** |")
+    add("| Patient-specific physiological parameter | not reported | **$S_I$, 3 pre-registered checks** |")
+    add("| Subject-disjoint (LOSO) result | not reported | **yes, §3** |")
+    add("| Validated persistence baseline | **no entry validates its baseline** | **yes, to 0.10 mg/dL** |")
+    add("")
+    add("### 8.6 Where the work is genuinely ahead\n")
     add(
         "1. **Calibrated hypoglycaemia detection.** Sensitivity 0.928 from a properly "
         "calibrated 10th percentile (9.5% observed vs 10.0% nominal). We found **no published "

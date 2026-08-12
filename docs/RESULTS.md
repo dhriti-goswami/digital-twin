@@ -373,30 +373,113 @@ Attribution concentrates in the final timesteps — recency dominates, which is 
 
 ## 8. Comparison with published work
 
-`VERIFIED-PRIMARY` benchmarks from [`CITATIONS_benchmarks.md`](CITATIONS_benchmarks.md).
+All benchmarks are `VERIFIED-PRIMARY`, transcribed from each paper's own results table into [`CITATIONS_benchmarks.md`](CITATIONS_benchmarks.md). Every row uses the **official organiser-provided train/test split**, per-subject models, mean of per-subject errors, scored **at** the horizon endpoint. All values mg/dL, lower is better.
 
-| Method | RMSE@30 | MAE@30 | RMSE@60 | MAE@60 |
-|---|---|---|---|---|
-| Freiburghaus CNN/LSTM ‡ | **17.45** | **11.22** | 33.67 | 23.25 |
-| Rubin-Falcone N-BEATS + BiLSTM | **18.22** | **12.83** | 31.66 | 23.60 |
-| Bevan & Coenen LSTM (*non-personalised*) | 18.23 | 14.37 | 31.10 | 25.75 |
-| Pavan NN-EIM ‡ | 18.63 | 10.08 | 32.27 | 17.69 |
-| Yang MS-LSTM | 19.05 | 13.50 | 32.03 | 23.83 |
-| **This work — official protocol** | **18.84** | **13.08** | **30.52** | **21.98** |
-| **This work — LOSO (subject-disjoint)** | 20.73 | 14.66 | 33.96 | 24.85 |
-| Persistence (validated, 2 sources) | 22.5 | 16.87 | 36.6 | 28.22 |
+**The two challenge cohorts are tabled separately and never averaged.** The 2020 protocol excludes the first hour (12 points) of each test file and the 2018 protocol does not, so a pooled 12-subject number is not comparable to either published table. Our rows are therefore recomputed per cohort, with the 2020 exclusion applied.
 
-‡ **Flagged.** Pavan's MAE/RMSE ratio is 0.54 overall and 0.39 for one subject, far out of family with every other entry (all 0.68–0.75), and their test set is un-imputed with a reduced predicted-sample count. Freiburghaus is a single best-config figure.
+### 8.1 2020 challenge cohort — subjects 540 / 544 / 552 / 567 / 584 / 596
 
-### 8.1 Where we stand — stated plainly
+The larger and more competitive table: 17 published entries, MAE reported throughout. **The `#` column is our rank by RMSE@30 including our own row**, so placing our result last does not imply it is best.
 
-**At 30 minutes we are mid-field, not state of the art.** MAE 13.08 sits behind Rubin-Falcone (12.83) and Freiburghaus (11.22); RMSE 18.84 behind both and essentially tied with Yang (19.05). We do beat a non-personalised LSTM on MAE, and we clearly beat persistence.
+| # | Study | Model family | RMSE@30 | MAE@30 | RMSE@60 | MAE@60 |
+|---|---|---|---:|---:|---:|---:|
+| 1 | Freiburghaus et al. ‡ | CNN/LSTM | 17.45 | 11.22 | 33.67 | 23.25 |
+| 2 | Rubin-Falcone, Fox & Wiens † | N-BEATS + BiLSTM | 18.22 | 12.83 | 31.66 | 23.60 |
+| 3 | Bevan & Coenen † | LSTM (non-personalised) | 18.23 | 14.37 | 31.10 | 25.75 |
+| 4 | Zhu et al. | GAN (GRU + 1D-CNN) | 18.34 | 13.37 | 32.31 | 24.20 |
+| 5 | Pavan et al. ‡ | Shallow NN + error imputation | 18.63 | 10.08 | 32.27 | 17.69 |
+| 6 | Nemat et al. | Stacked regression + activity | 18.99 | 13.73 | 33.39 | 25.04 |
+| 7 | Yang et al. | Multi-scale LSTM | 19.05 | 13.50 | 32.03 | 23.83 |
+| 8 | Khadem et al. | Multi-lag stacking | 19.21 | 13.93 | 33.65 | 25.31 |
+| 9 | Sun et al. | Latent-variable statistical | 19.37 | 13.76 | 32.59 | 24.64 |
+| 10 | Mayo & Koutny (+2018 data) †§ | Multi-class LSTM | 19.40 | 13.90 | 33.40 | 25.00 |
+| 11 | Joedicke et al. ‖ | Genetic programming | 19.60 | 14.25 | 32.04 | 23.58 |
+| 12 | Daniels, Herrero & Georgiou | Multitask CRNN | 19.79 | 13.62 | 33.73 | 24.54 |
+| 13 | Mayo & Koutny § | Multi-class LSTM | 19.80 | 14.40 | 34.00 | 25.80 |
+| 14 | Ma et al. ¶ | Online ARMA + residual net | 20.03 | 14.52 | 34.89 | 24.61 |
+| 15 | Cappon et al. | Personalised interpretable LSTM | 20.20 | 14.74 | 34.19 | 25.98 |
+| 16 | Daniels et al. (ablation) | Single-task CRNN | 20.67 | 14.28 | 34.40 | 24.67 |
+| 17 | Bhimireddy et al. | Seq2Seq BiLSTM | 21.80 | 15.00 | 35.00 | 25.00 |
+| **6** | **This work** | **Physics-guided PINN (Bergman) + Transformer** | **18.74** | **13.24** | **31.16** | **22.55** |
+| — | *Persistence baseline (ours)* | *naive* | 24.22 | 17.45 | 40.11 | 29.51 |
 
-**At 60 minutes we are nominally ahead of every entry we could verify** — RMSE 30.52 vs the best published 31.10, MAE 21.98 vs 23.25. **We deliberately do not headline this.** Our window eligibility is stricter than anyone's (targets must be real observations at exactly the nominal horizon, no forward-filling), the net direction of that mismatch is unknown, and a 0.6–1.3 mg/dL edge sits inside the uncertainty it introduces.
+### 8.2 2018 challenge cohort — subjects 559 / 563 / 570 / 575 / 588 / 591
 
-**One protocol caution for readers comparing tables.** Karagoz et al. 2025 report RMSE@30 = 15.81 / MAE 9.67, apparently beating the entire field — but their error is averaged over prediction steps 5→30 min rather than measured *at* 30 min, which fully explains the gap. Such entries are excluded here.
+MAE was rarely reported in 2018, so most cells are empty — that absence is itself worth noting, since it means the field's own MAE history on this cohort is thin.
 
-### 8.2 Where the work is genuinely ahead
+| # | Study | Model family | RMSE@30 | MAE@30 | RMSE@60 | MAE@60 |
+|---|---|---|---:|---:|---:|---:|
+| 1 | Gu, Dang & Prioleau | Physiology-informed conv + LSTM | 17.80 | — | — | — |
+| 2 | Chen et al. ¶ | Dilated RNN (best of 10) | 18.91 | — | — | — |
+| 3 | Chen et al. | Dilated RNN (mean of 10) | 19.04 | — | — | — |
+| 4 | Bertachi et al. | Physiological model + ANN | 19.33 | — | 31.72 | — |
+| 5 | Xie & Wang | SVR-RBF, recursive | 19.53 | — | — | — |
+| 6 | Xie & Wang | Ridge / linear regression | 19.62 | — | — | — |
+| 7 | Martinsson et al. | LSTM (MSE loss) | 20.10 | — | 33.20 | — |
+| 8 | Midroni et al. | XGBoost | 20.38 | — | — | — |
+| 9 | Martinsson et al. | LSTM (NLL loss) | 20.70 | — | 33.60 | — |
+| 10 | Mayo & Koutny § | Multi-class LSTM | 20.70 | 14.30 | 32.80 | 24.20 |
+| 11 | Contreras et al. | Grammatical evolution | 21.19 | — | 31.34 | — |
+| 12 | Zhu et al. | WaveNet-style CNN | 21.73 | — | — | — |
+| **3** | **This work** | **Physics-guided PINN (Bergman) + Transformer** | **18.93** | **12.92** | **29.89** | **21.42** |
+| — | *Persistence baseline (ours)* | *naive* | 22.52 | 16.28 | 36.19 | 26.92 |
+
+### 8.3 Post-challenge, all 12 subjects
+
+Piao et al. 2025 train on the official split but score all 12 subjects, so this is the one table our pooled figure can join.
+
+| # | Study | Model family | RMSE@30 | MAE@30 |
+|---|---|---|---:|---:|
+| 1 | Piao et al. 2025 | GARNN (GATv2 + GRU) | 18.97 | 13.34 |
+| 2 | Piao et al. (baseline) | NHiTS | 20.14 | 14.07 |
+| 3 | Piao et al. (baseline) | N-BEATS | 20.15 | 14.11 |
+| 4 | Piao et al. (baseline) | IMV-TENSOR | 20.15 | 14.00 |
+| 5 | Piao et al. (baseline) | RETAIN | 20.30 | 14.41 |
+| 6 | Piao et al. (baseline) | Linear regression | 22.19 | 15.92 |
+| **1** | **This work** | **Physics-guided PINN + Transformer** | **18.84** | **13.08** |
+| — | *This work — LOSO (subject-disjoint)* | *same model, no subject overlap* | *20.73* | *14.66* |
+
+**Read this table with care.** We lead it, but five of the six rows are Piao et al.'s *own* baselines rather than independently-tuned published systems; the only genuine competitor is GARNN at 18.97 / 13.34, which we edge by 0.13 RMSE and 0.26 MAE. That margin is far smaller than the between-subject spread (± 2.58 RMSE) and should be read as a tie, not a win.
+
+**The LOSO row is not comparable to anything above it** and is included only to show the cost of removing personalisation — MAE rises from 13.08 to 14.66 when the test subject's own history is withheld. No published OhioT1DM entry we found reports a subject-disjoint result at all.
+
+#### Footnotes to the benchmark tables
+
+- **†** *Extra training data.* Rubin-Falcone et al. pre-train on Tidepool plus the 2018 cohort; Bevan & Coenen train non-personalised models across patients; Mayo & Koutny's second round adds the 2018 cohort. All legal under challenge rules, but none is an OhioT1DM-only model.
+- **‡** *Not safely comparable.* Pavan's MAE/RMSE ratio is 0.54 overall and 0.39 for one subject, far out of family with every other entry (all 0.68–0.75); their test set is un-imputed and they predict fewer than all available samples, so the MAE may be over a subset. Freiburghaus is a single best-config figure and elsewhere quotes RMSE 13.34 / MAE 9.08 for selected curves.
+- **§** Mayo & Koutny discard every test example containing a gap, so their scored set is smaller than the official one.
+- **¶** *Best-of-runs.* Ma et al. and Chen et al. report the best across seeds, which is optimistically biased; Chen's honest mean is 19.04 against a best-of-10 of 18.91.
+- **‖** Joedicke et al. report many genetic-programming variants; the best column per metric was taken, so the variant identity is uncertain.
+- **Excluded entirely:** Karagoz et al. 2025 (RMSE@30 15.81 / MAE 9.67) average error over prediction steps 5→30 min instead of measuring *at* 30 min, which fully explains the apparent lead; and several results circulating at RMSE@30 ≈ 1.4–9.4 mg/dL are below CGM sensor noise and are almost certainly leakage.
+
+### 8.4 What the tables actually show
+
+**At 30 minutes we are competitive but not state of the art.** On the 2020 cohort we rank **6 of 18** by RMSE@30 and **4 of 18** by MAE@30. Of the three entries ahead of us on MAE, two are the `‡`-flagged figures we argue are not safely comparable; the one clean entry ahead is Rubin-Falcone at 12.83, which was pre-trained on Tidepool plus the 2018 cohort. On the 2018 cohort we rank **3 of 13**, behind Gu's physiology-informed encoder (17.80) and Chen's best-of-10 dilated RNN (18.91).
+
+**At 60 minutes the picture is better and is the strongest accuracy claim available.** On the 2018 cohort our RMSE@60 of 29.89 is ahead of the best published value (31.34, Contreras) by a clear margin, and our MAE@60 of 21.42 has no published competitor on that cohort at all. On the 2020 cohort our RMSE@60 of 31.16 is essentially tied with Bevan & Coenen (31.10), while our MAE@60 of 22.55 leads every entry except the flagged Pavan figure.
+
+**A correction we owe the reader.** An earlier version of this document claimed we were ahead of every verified entry on RMSE@60, using a pooled 12-subject figure of 30.52. Recomputing per cohort — which is the only protocol-valid comparison — removes that lead on the 2020 cohort. The MAE@60 result survives; the RMSE@60 claim does not.
+
+**Why we still do not headline the 60-minute result.** Our window eligibility is stricter than any published entry's: every target must be a real observation at exactly the nominal horizon, with no forward-filling and no interpolated targets. Several benchmark entries explicitly relax this. The net direction of that mismatch is unknown, so a 1–2 mg/dL edge sits inside the uncertainty it introduces.
+
+### 8.5 What no benchmark entry reports
+
+The columns below are the reason this comparison is not purely about point error. Empty cells are **not** failures by those authors — the metrics were simply not part of the challenge protocol. But the emptiness is the argument: a leaderboard of MAE cannot tell a clinician whether a model is safe.
+
+| Reported quantity | Any benchmark entry | **This work** |
+|---|---|---|
+| MAE / RMSE at 30 and 60 min | yes | **yes** |
+| RMSE / MAE at 90 and 120 min | **no protocol-matched value exists** | **yes** |
+| $R^2$ | not reported by any entry | **0.885** at 30 min |
+| Clarke zone A % | rarely, never with all five zones | **89.8%** |
+| Clarke zone E % (dangerous reversals) | not reported | **0.000%** |
+| Calibrated prediction interval | not reported | **10th/90th percentile, 9.5% / 88.9% observed** |
+| Event-level hypoglycaemia sensitivity | not reported | **0.928** |
+| Patient-specific physiological parameter | not reported | **$S_I$, 3 pre-registered checks** |
+| Subject-disjoint (LOSO) result | not reported | **yes, §3** |
+| Validated persistence baseline | **no entry validates its baseline** | **yes, to 0.10 mg/dL** |
+
+### 8.6 Where the work is genuinely ahead
 
 1. **Calibrated hypoglycaemia detection.** Sensitivity 0.928 from a properly calibrated 10th percentile (9.5% observed vs 10.0% nominal). We found **no published OhioT1DM entry reporting event-level hypoglycaemia sensitivity with calibration at all** — the comparison cannot be made because the metric is not reported elsewhere.
 2. **A validated patient-specific physiological parameter.** `S_I` passing three pre-registered checks, ranking subjects almost monotonically by true insulin requirement.
