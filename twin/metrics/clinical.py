@@ -261,18 +261,166 @@ def hypoglycaemia_detection(
     }
 
 
+def find_hypoglycemia_episodes(
+    glucose: Array, *, threshold: float = LOW_MAX, min_duration_steps: int = 3
+) -> list[tuple[int, int]]:
+    """Identify contiguous hypoglycemic episodes lasting at least min_duration_steps (e.g. 15 min)."""
+    values = np.asarray(glucose, dtype=np.float64).ravel()
+    is_low = (values < threshold).astype(int)
+    episodes: list[tuple[int, int]] = []
+    in_episode = False
+    start = 0
+    for i, val in enumerate(is_low):
+        if val == 1 and not in_episode:
+            in_episode = True
+            start = i
+        elif val == 0 and in_episode:
+            in_episode = False
+            if i - start >= min_duration_steps:
+                episodes.append((start, i - 1))
+    if in_episode and (len(is_low) - start >= min_duration_steps):
+        episodes.append((start, len(is_low) - 1))
+    return episodes
+
+
+@dataclass(frozen=True)
+class EventHypoglycemiaReport:
+    total_episodes: int
+    detected_episodes: int
+    event_sensitivity: float
+    specificity: float
+    false_alarm_episodes: int
+    false_alarms_per_day: float
+    median_lead_time_min: float
+    mean_lead_time_min: float
+    monitored_days: float
+
+    def as_dict(self) -> dict[str, float]:
+        return {
+            "total_episodes": float(self.total_episodes),
+            "detected_episodes": float(self.detected_episodes),
+            "event_sensitivity": self.event_sensitivity,
+            "specificity": self.specificity,
+            "false_alarm_episodes": float(self.false_alarm_episodes),
+            "false_alarms_per_day": self.false_alarms_per_day,
+            "median_lead_time_min": self.median_lead_time_min,
+            "mean_lead_time_min": self.mean_lead_time_min,
+            "monitored_days": self.monitored_days,
+        }
+
+
+def event_based_hypoglycemia_detection(
+    y_true: Array,
+    y_pred: Array,
+    subject_ids: Array | list[str | int] | None = None,
+    *,
+    threshold: float = LOW_MAX,
+    grid_minutes: int = 5,
+    min_event_steps: int = 3,
+    detection_window_steps: int = 6,
+) -> EventHypoglycemiaReport:
+    """Consensus episode-level evaluation of hypoglycemia prediction.
+
+    Evaluates:
+    - Event sensitivity: fraction of consensus episodes (>= 15 min < 70 mg/dL)
+      where a predictive alarm was issued in advance (or at onset).
+    - Detection lead time: minutes between first predictive alarm and episode onset.
+    - False alarms per patient-day: false alarm episodes divided by monitored patient-days.
+    - Specificity: true negative intervals over all non-hypoglycemic intervals.
+    """
+    reference = np.asarray(y_true, dtype=np.float64).ravel()
+    prediction = np.asarray(y_pred, dtype=np.float64).ravel()
+    if reference.shape != prediction.shape:
+        raise MetricError("shape mismatch")
+
+    if subject_ids is None:
+        subjs = np.zeros(len(reference), dtype=int)
+    else:
+        subjs = np.asarray(subject_ids).ravel()
+
+    total_episodes = 0
+    detected_episodes = 0
+    lead_times: list[float] = []
+    total_false_alarms = 0
+    total_patient_days = 0.0
+    tn_count = 0
+    fp_count = 0
+
+    for s in np.unique(subjs):
+        mask = subjs == s
+        ref_s = reference[mask]
+        pred_s = prediction[mask]
+        n_pts = len(ref_s)
+        p_days = (n_pts * grid_minutes) / 1440.0
+        total_patient_days += p_days
+
+        episodes = find_hypoglycemia_episodes(
+            ref_s, threshold=threshold, min_duration_steps=min_event_steps
+        )
+        total_episodes += len(episodes)
+        alarm_active = pred_s < threshold
+
+        for start, end in episodes:
+            lookback = max(0, start - detection_window_steps)
+            alarm_window = alarm_active[lookback : start + 1]
+            if np.any(alarm_window):
+                detected_episodes += 1
+                prior_alarms = alarm_active[lookback:start]
+                first_idx = lookback + int(np.argmax(prior_alarms)) if np.any(prior_alarms) else start
+                lead_time = float((start - first_idx) * grid_minutes)
+                lead_times.append(lead_time)
+
+        # False alarms: alarms when no event occurs near
+        in_fa = False
+        for i in range(n_pts):
+            is_event_near = any(start - detection_window_steps <= i <= end for start, end in episodes)
+            if alarm_active[i]:
+                if not is_event_near:
+                    if not in_fa:
+                        total_false_alarms += 1
+                        in_fa = True
+                    fp_count += 1
+                else:
+                    in_fa = False
+            else:
+                in_fa = False
+                if not is_event_near:
+                    tn_count += 1
+
+    sens = float(detected_episodes / total_episodes) if total_episodes > 0 else 0.0
+    spec = float(tn_count / (tn_count + fp_count)) if (tn_count + fp_count) > 0 else 0.0
+    fa_per_day = float(total_false_alarms / total_patient_days) if total_patient_days > 0 else 0.0
+    med_lead = float(np.median(lead_times)) if lead_times else 0.0
+    mean_lead = float(np.mean(lead_times)) if lead_times else 0.0
+
+    return EventHypoglycemiaReport(
+        total_episodes=total_episodes,
+        detected_episodes=detected_episodes,
+        event_sensitivity=sens,
+        specificity=spec,
+        false_alarm_episodes=total_false_alarms,
+        false_alarms_per_day=fa_per_day,
+        median_lead_time_min=med_lead,
+        mean_lead_time_min=mean_lead,
+        monitored_days=total_patient_days,
+    )
+
+
 __all__ = [
+    "EventHypoglycemiaReport",
     "HIGH_MIN",
     "LOW_MAX",
     "RISK_EXPONENT",
     "RISK_OFFSET",
     "RISK_SCALE",
-    "VERY_HIGH_MIN",
-    "VERY_LOW_MAX",
     "RangeAgreement",
     "RangeDistribution",
     "RiskIndices",
+    "VERY_HIGH_MIN",
+    "VERY_LOW_MAX",
     "coefficient_of_variation",
+    "event_based_hypoglycemia_detection",
+    "find_hypoglycemia_episodes",
     "hbgi",
     "hypoglycaemia_detection",
     "lbgi",
