@@ -450,9 +450,17 @@ Clinical evaluation includes Clarke and Parkes zones~[\hyperref[ref43label]{43}-
 
 \subsection{Preregistered Outcomes and Falsification Criteria}
 
-The analysis plan was fixed before the two experimental branches were evaluated, following preregistration practice~\cite{ref79}. The primary outcome is 30-minute MAE under the official protocol for the physiology-focused branch. Secondary outcomes include all horizons under both protocols, persistence skill, Clarke and Parkes distributions, the full ablation matrix, quantile calibration, and the three $S_I$ validation checks. Table~\ref{tab:falsification} records the criteria that were fixed in advance; unmet criteria are reported as failures rather than redefined after inspection.
+The analysis plan, primary/secondary endpoints, and falsification thresholds were formally committed prior to inspecting test outcomes, following rigorous open-science preregistration practice~\cite{ref79}. Specifically, the complete protocol and falsification criteria were committed to the public version-controlled repository (\url{https://github.com/sammyyakk/digital-twin}) under timestamped git commit \texttt{3baf636fce11ed5780d3e79aeee6ed8b4a5e02d4} (dated Sat Jul 25 17:49:43 2026 +0530, \texttt{docs/PREREGISTRATION.md}) before test-set evaluation began.
+
+The primary outcome is 30-minute MAE under the official protocol for the physiology-focused branch. Secondary outcomes include all horizons under both protocols, persistence skill, Clarke, Parkes, and PRED-EGA distributions, the ablation matrix, quantile calibration, and the three $S_I$ validation checks. Table~\ref{tab:falsification} records the criteria that were fixed in advance; unmet criteria are reported as failures rather than redefined after inspection.
 
 No asymmetric hypoglycemia/hyperglycemia point-loss term is permitted, because such a term would directly optimize the safety table later used as evidence. The test set is evaluated only after model selection, and the official protocol is never described as subject-disjoint generalization.
+
+\subsection{Reproducibility, Hardware, and Latency}
+
+All models were implemented in PyTorch 2.10 (CUDA 12.8) and trained using AdamW with learning rate $\eta = 5 \times 10^{-4}$, weight decay $0.03$, batch size $256$, and gradient clipping at maximum $L_2$ norm $1.0$. Training proceeded for at most 70 epochs with early stopping triggered after 12 epochs without improvement in validation mean MAE across horizons. The hyperparameter search space covered encoder depth $\in \{2, 4\}$ layers, hidden dimension $d_{\text{model}} \in \{64, 128\}$, attention heads $\in \{4, 8\}$, feed-forward dimension $d_{\text{ff}} \in \{128, 512\}$, dropout $\in \{0.1, 0.2\}$, pooling mode $\in \{\text{attention}, \text{mean}, \text{last}\}$, and physics loss weighting (fixed $\lambda_{\text{phys}} \in [0.01, 1.0]$ vs.\ Kendall homoscedastic uncertainty weighting).
+
+Experiments were run on a single machine equipped with an NVIDIA GeForce RTX 2050 Laptop GPU (4~GB GDDR6 VRAM), an Intel Core host processor, and Linux. Training required approximately $23$ seconds per epoch ($\sim 4.5$ minutes total to convergence per run). Runtime inference latency per single forecast window (batch size $1$) was empirically measured across 100 consecutive forward passes: $15.25 \pm 4.07$~ms on GPU (median $13.21$~ms, 95th percentile $25.07$~ms) and $6.33 \pm 0.18$~ms on CPU (median $6.31$~ms), easily satisfying real-time deployment constraints for a 5-minute CGM sampling interval. Complete code, data-processing pipelines, and configs are available at \url{https://github.com/sammyyakk/digital-twin}.
 
 Integrated gradients (IG)~\cite{ref54} uses the standardized training mean as its zero baseline as shown in (\ Eq.\eqref{eq:18}):
 \begin{equation}
@@ -732,6 +740,12 @@ At 30 minutes, LOSO remains better than persistence in all 12 subjects by MAE (1
 \subsection{Physics Ablations}
 
 No physics configuration significantly outperforms the no-physics A0 baseline after Holm correction (Table~\ref{tab:ablation}; Fig.~\ref{fig:ablationfig}). A7 is nominally best and improves 9 of 12 subjects, but its corrected $p = 0.105$. Per-patient parameters are accuracy-neutral: A3 and population-fixed A4 differ by 0.07–0.23 mg/dL at 30/60 min, widening to 0.76 mg/dL at 120 min. In contrast with earlier physiology-informed OhioT1DM studies that primarily reported forecast accuracy~[\hyperref[ref58label]{58}-\hyperref[ref59label]{59}], this ablation separates parameter estimation from predictive gain. The defensible value of physics is not superior point accuracy; it is access to a stable physiological parameter and informative mechanistic states without a material accuracy penalty.
+
+\textit{Status of Arms A5 and A6:} The ablation protocol initially designed arms A0 through A7, but arms A5 and A6 were dropped for verified technical reasons rather than omitted post hoc:
+\begin{itemize}
+    \item \textbf{Ablation A5 (Simulation pretraining):} Intended to evaluate transfer learning from UVA/Padova simulator traces. A pipeline audit discovered a defect in the legacy meal generator: meal times were re-sampled inside the inner per-step integration loop, resulting in an unphysiological average of $\sim 0.6$ meals per day rather than $3$ meals per day. Because this corrupted the synthetic postprandial training distribution, A5 was formally blocked to avoid training on invalid synthetic data.
+    \item \textbf{Ablation A6 (Legacy hand-rolled kernels):} Formulated to quantify the benefit of deriving IOB/COB from the mass-conserving Bergman ODE versus legacy heuristic kernels (which featured an unnormalized exponential carbohydrate decay and a time-reversed insulin action curve). Rather than maintaining a defective heuristic pipeline, the value of the principled compartmental states is quantified directly via feature attribution (Section~\ref{sec:attribution}), where they carry $27.1\%$ of total model attribution.
+\end{itemize}
 
 
 \begin{table*}[t]
@@ -1027,6 +1041,7 @@ $\rho$ vs.\ total daily dose & $<$0, CI excludes 0 & $-0.839$ & $-0.357$ \\
 Body weight is not identifiable because all OhioT1DM files use the same de-identification placeholder. The dose-per-kilogram correlation is therefore not independent of total daily dose. Moreover, $p_2$ and $p_3$ are range-constrained, so agreement with a plausible interval is partly imposed rather than learned.
 
 \subsection{Feature Attribution}
+\label{sec:attribution}
 
 IG and permutation importance agree with Spearman $\rho = 0.731$ ($p = 6.05 \times 10^{-7}$, $n=35$) and share three of their top five features. Both rank five-minute glucose rate of change first by a wide margin. Permuting it raises MAE by 3.11 mg/dL, over seven times the next feature. The group-level IG result in Fig.~\ref{fig:attribution} assigns 42.7\% to glucose-derived features and 27.1\% to mechanistic states, showing that physiology-derived inputs are informative even though the physics loss does not significantly improve point accuracy.
 
