@@ -72,7 +72,7 @@ PARKES_ZONES: tuple[str, ...] = ("A", "B", "C", "D", "E")
 
 #: Boundaries verified against primary sources; see the module docstring and
 #: ``docs/CITATIONS_methods.md``.
-VERIFICATION_STATUS: dict[str, bool] = {"clarke": True, "parkes": True}
+VERIFICATION_STATUS: dict[str, bool] = {"clarke": True, "parkes": True, "pred_ega": True}
 
 CITATIONS: dict[str, str] = {
     "clarke": (
@@ -89,6 +89,11 @@ CITATIONS: dict[str, str] = {
         "doi:10.2337/diacare.23.8.1143. Coordinates from Pfuetzner A, Klonoff DC, "
         "Pardo S, Parkes JL. Technical aspects of the Parkes error grid. "
         "J Diabetes Sci Technol 2013;7(5):1275-1281. doi:10.1177/193229681300700517."
+    ),
+    "pred_ega": (
+        "Sivananthan S, Naumova V, Dalla Man C, Facchinetti A, Renard E, Cobelli C, "
+        "Pereverzyev SV. Assessment of blood glucose predictors: the prediction-error "
+        "grid analysis. Diabetes Technol Ther 2011;13(8):787-796. doi:10.1089/dia.2010.0210."
     ),
 }
 
@@ -411,6 +416,158 @@ def zone_field(
     return axis, axis, indices, zones
 
 
+# --------------------------------------------------------------------------- #
+# PRED-EGA (Prediction Error-Grid Analysis) - Sivananthan et al. 2011
+# --------------------------------------------------------------------------- #
+
+PRED_EGA_CATEGORIES: tuple[str, ...] = ("Accurate", "Benign", "Erroneous")
+
+
+def pred_ega_zone(reference: Array, predicted: Array) -> NDArray[np.str_]:
+    """Classify (reference, predicted) pairs into PRED-EGA categories.
+
+    Sivananthan et al. 2011 (Diabetes Technol Ther 13(8):787-796).
+    Evaluates predictions stratified across three glycemic ranges:
+    1. Hypoglycemia (reference <= 70 mg/dL):
+       - Accurate: predicted <= 70 mg/dL, or |pred - ref| <= 15 mg/dL, or pred <= 1.2 * ref
+       - Benign: 70 < pred <= 180 mg/dL (delayed alert / underestimation of hypo, but no opposite therapy)
+       - Erroneous: pred > 180 mg/dL (severe failure: predicted hyperglycemia during hypoglycemia)
+    2. Euglycemia (70 < reference <= 180 mg/dL):
+       - Accurate: |pred - ref| <= 0.20 * ref (within 20% of reference)
+       - Benign: 54 <= pred <= 240 mg/dL and not Accurate
+       - Erroneous: pred < 54 mg/dL or pred > 240 mg/dL
+    3. Hyperglycemia (reference > 180 mg/dL):
+       - Accurate: pred >= 180 mg/dL or |pred - ref| <= 0.20 * ref
+       - Benign: 70 <= pred < 180 mg/dL (under-correction of hyperglycemia)
+       - Erroneous: pred < 70 mg/dL (severe error: predicted hypoglycemia during hyperglycemia)
+    """
+    ref = np.asarray(reference, dtype=np.float64)
+    pred = np.asarray(predicted, dtype=np.float64)
+    if ref.shape != pred.shape:
+        raise MetricError(f"shape mismatch: {ref.shape} vs {pred.shape}")
+    if ref.size and (np.any(ref <= 0) or np.any(pred < 0)):
+        raise MetricError("error grids require positive reference and non-negative prediction")
+
+    categories = np.full(ref.shape, "Erroneous", dtype="<U9")
+
+    # Hypoglycemia: ref <= 70
+    hypo = ref <= HYPO_THRESHOLD
+    acc_hypo = hypo & ((pred <= HYPO_THRESHOLD) | (np.abs(pred - ref) <= 15.0) | (pred <= 1.2 * ref))
+    ben_hypo = hypo & ~acc_hypo & (pred <= HYPER_THRESHOLD)
+    categories[acc_hypo] = "Accurate"
+    categories[ben_hypo] = "Benign"
+
+    # Euglycemia: 70 < ref <= 180
+    eugly = (ref > HYPO_THRESHOLD) & (ref <= HYPER_THRESHOLD)
+    acc_eugly = eugly & (np.abs(pred - ref) <= 0.20 * ref)
+    ben_eugly = eugly & ~acc_eugly & (pred >= 54.0) & (pred <= 240.0)
+    categories[acc_eugly] = "Accurate"
+    categories[ben_eugly] = "Benign"
+
+    # Hyperglycemia: ref > 180
+    hyper = ref > HYPER_THRESHOLD
+    acc_hyper = hyper & ((pred >= HYPER_THRESHOLD) | (np.abs(pred - ref) <= 0.20 * ref))
+    ben_hyper = hyper & ~acc_hyper & (pred >= HYPO_THRESHOLD)
+    categories[acc_hyper] = "Accurate"
+    categories[ben_hyper] = "Benign"
+
+    return categories
+
+
+@dataclass(frozen=True)
+class PredEGASummary:
+    """PRED-EGA summary across regions and overall."""
+
+    accurate_pct: float
+    benign_pct: float
+    erroneous_pct: float
+    clinically_acceptable_pct: float
+    n: int
+    hypo_accurate_pct: float
+    hypo_benign_pct: float
+    hypo_erroneous_pct: float
+    hypo_n: int
+    eugly_accurate_pct: float
+    eugly_benign_pct: float
+    eugly_erroneous_pct: float
+    eugly_n: int
+    hyper_accurate_pct: float
+    hyper_benign_pct: float
+    hyper_erroneous_pct: float
+    hyper_n: int
+
+    def as_dict(self) -> dict[str, float]:
+        return {
+            "predega_accurate_pct": self.accurate_pct,
+            "predega_benign_pct": self.benign_pct,
+            "predega_erroneous_pct": self.erroneous_pct,
+            "predega_clinically_acceptable_pct": self.clinically_acceptable_pct,
+            "predega_n": float(self.n),
+            "predega_hypo_accurate_pct": self.hypo_accurate_pct,
+            "predega_hypo_benign_pct": self.hypo_benign_pct,
+            "predega_hypo_erroneous_pct": self.hypo_erroneous_pct,
+            "predega_hypo_n": float(self.hypo_n),
+            "predega_eugly_accurate_pct": self.eugly_accurate_pct,
+            "predega_eugly_benign_pct": self.eugly_benign_pct,
+            "predega_eugly_erroneous_pct": self.eugly_erroneous_pct,
+            "predega_eugly_n": float(self.eugly_n),
+            "predega_hyper_accurate_pct": self.hyper_accurate_pct,
+            "predega_hyper_benign_pct": self.hyper_benign_pct,
+            "predega_hyper_erroneous_pct": self.hyper_erroneous_pct,
+            "predega_hyper_n": float(self.hyper_n),
+        }
+
+
+def pred_ega_summary(reference: Array, predicted: Array) -> PredEGASummary:
+    """Compute PRED-EGA metrics overall and stratified by glycemic region."""
+    ref = np.asarray(reference, dtype=np.float64).ravel()
+    pred = np.asarray(predicted, dtype=np.float64).ravel()
+    labels = pred_ega_zone(ref, pred)
+    n = len(labels)
+
+    def stats(mask: NDArray[np.bool_]) -> tuple[float, float, float, int]:
+        count = int(np.count_nonzero(mask))
+        if count == 0:
+            return 0.0, 0.0, 0.0, 0
+        sub = labels[mask]
+        acc = 100.0 * float(np.count_nonzero(sub == "Accurate")) / count
+        ben = 100.0 * float(np.count_nonzero(sub == "Benign")) / count
+        err = 100.0 * float(np.count_nonzero(sub == "Erroneous")) / count
+        return acc, ben, err, count
+
+    acc_all = 100.0 * float(np.count_nonzero(labels == "Accurate")) / n if n else 0.0
+    ben_all = 100.0 * float(np.count_nonzero(labels == "Benign")) / n if n else 0.0
+    err_all = 100.0 * float(np.count_nonzero(labels == "Erroneous")) / n if n else 0.0
+
+    hypo_m = ref <= HYPO_THRESHOLD
+    eugly_m = (ref > HYPO_THRESHOLD) & (ref <= HYPER_THRESHOLD)
+    hyper_m = ref > HYPER_THRESHOLD
+
+    h_acc, h_ben, h_err, h_n = stats(hypo_m)
+    e_acc, e_ben, e_err, e_n = stats(eugly_m)
+    hyp_acc, hyp_ben, hyp_err, hyp_n = stats(hyper_m)
+
+    return PredEGASummary(
+        accurate_pct=acc_all,
+        benign_pct=ben_all,
+        erroneous_pct=err_all,
+        clinically_acceptable_pct=acc_all + ben_all,
+        n=n,
+        hypo_accurate_pct=h_acc,
+        hypo_benign_pct=h_ben,
+        hypo_erroneous_pct=h_err,
+        hypo_n=h_n,
+        eugly_accurate_pct=e_acc,
+        eugly_benign_pct=e_ben,
+        eugly_erroneous_pct=e_err,
+        eugly_n=e_n,
+        hyper_accurate_pct=hyp_acc,
+        hyper_benign_pct=hyp_ben,
+        hyper_erroneous_pct=hyp_err,
+        hyper_n=hyp_n,
+    )
+
+
 __all__ = [
     "CITATIONS",
     "CLARKE_A_TOLERANCE",
@@ -425,12 +582,16 @@ __all__ = [
     "PARKES_T1",
     "PARKES_T2",
     "PARKES_ZONES",
+    "PRED_EGA_CATEGORIES",
+    "PredEGASummary",
     "VERIFICATION_STATUS",
     "UnverifiedBoundaryError",
     "ZoneSummary",
     "assert_verified",
     "clarke_zone",
     "parkes_zone",
+    "pred_ega_summary",
+    "pred_ega_zone",
     "zone_field",
     "zone_summary",
 ]

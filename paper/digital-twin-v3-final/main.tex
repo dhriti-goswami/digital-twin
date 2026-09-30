@@ -818,7 +818,35 @@ A7 & Hybrid, full physics from epoch 1 & \textbf{13.25} & \textbf{22.29} & \text
 
 \subsection{Clinical Accuracy and Hypoglycemia Detection}
 
-Clinical agreement remains high but decreases with forecast horizon: Clarke A+B decreases from 99.0\% at 30 minutes to 94.3\% at 120 minutes (Fig.~\ref{fig:clarke}). The Parkes error grid, pooled across test windows, shows the same pattern: zone A+B falls from 99.8\% at 30 minutes to 95.9\% at 120 minutes, and zone E is 0\% at every horizon. However, Clarke zone A measures point-wise clinical agreement rather than hypoglycemia-event detection. Thus, 89.8\% of predictions falling in zone A and 0\% in zone E at 30 minutes can still coexist with the median forecast missing 43\% of hypoglycemic events.
+Clinical agreement remains high across horizons: Clarke A+B decreases from 99.0\% at 30 minutes to 94.3\% at 120 minutes (Fig.~\ref{fig:clarke}). The Parkes error grid, pooled across test windows, shows the same pattern: zone A+B falls from 99.8\% at 30 minutes to 95.9\% at 120 minutes, and zone E is 0\% at every horizon.
+
+Because classical Clarke and Parkes grids were developed for static point-in-time sensor measurements rather than dynamic multi-horizon forecasting, we additionally implemented and evaluated Prediction Error Grid Analysis (PRED-EGA; Sivananthan et al.~\cite{ref53}). PRED-EGA stratifies forecasts into three distinct physiological states—hypoglycemia ($\le 70$~mg/dL), euglycemia ($70$--$180$~mg/dL), and hyperglycemia ($> 180$~mg/dL)—and categorizes predictions into Accurate, Benign Errors, and Erroneous predictions based on clinical risk (Table~\ref{tab:predega}). Across all 12 subjects, clinically acceptable predictions (Accurate + Benign) exceed 99.4\% across all horizons from 30 to 120 minutes, with Erroneous predictions remaining strictly under 0.6\% even at 120 minutes. Crucially, in the severe hyperglycemia range, Accurate detection is $96.2\%$ at 30 minutes and $86.1\%$ at 60 minutes, while in the hypoglycemia range Erroneous classifications remain $0.00\%$ at 30 minutes ($0.13\%$ at 60 min).
+
+\begin{table}[t]
+\centering
+\caption{PRED-EGA (Sivananthan et al.~\cite{ref53}) clinical prediction error grid results across 12 subjects (mean $\pm$ SD across subjects)}
+\label{tab:predega}
+\footnotesize
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lrrrr}
+\toprule
+Metric & 30 min & 60 min & 90 min & 120 min \\
+\midrule
+Overall Accurate (\%) & $90.8 \pm 3.3$ & $77.8 \pm 7.0$ & $68.6 \pm 8.1$ & $61.9 \pm 8.3$ \\
+Overall Benign (\%) & $9.2 \pm 3.3$ & $21.9 \pm 7.0$ & $30.9 \pm 8.1$ & $37.5 \pm 8.2$ \\
+Overall Erroneous (\%) & $0.04 \pm 0.07$ & $0.28 \pm 0.28$ & $0.50 \pm 0.39$ & $0.60 \pm 0.44$ \\
+\textbf{Clinically Acceptable (\%)} & $\mathbf{99.96 \pm 0.07}$ & $\mathbf{99.72 \pm 0.28}$ & $\mathbf{99.50 \pm 0.39}$ & $\mathbf{99.40 \pm 0.44}$ \\
+\midrule
+Hypoglycemia Accurate (\%) & $65.9 \pm 20.1$ & $33.8 \pm 16.5$ & $18.3 \pm 12.0$ & $10.9 \pm 8.2$ \\
+Hypoglycemia Erroneous (\%) & $0.00 \pm 0.00$ & $0.13 \pm 0.44$ & $0.24 \pm 0.54$ & $1.59 \pm 3.82$ \\
+Hyperglycemia Accurate (\%) & $96.2 \pm 2.8$ & $86.1 \pm 6.8$ & $75.6 \pm 9.6$ & $66.1 \pm 12.0$ \\
+Hyperglycemia Erroneous (\%) & $0.00 \pm 0.00$ & $0.00 \pm 0.00$ & $0.00 \pm 0.00$ & $0.00 \pm 0.00$ \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+However, as observed with Clarke zone A, standard point-forecast metrics reward predictions close to the center and can underestimate acute excursions. Thus, 89.8\% of predictions in Clarke zone A and 99.96\% in PRED-EGA clinically acceptable at 30 minutes can still coexist with the median point forecast missing 43\% of hypoglycemic events.
 
 \pgfplotstableread[col sep=comma]{data/summary_model.csv}\summarytable
 \pgfplotstablegetelem{0}{clarke_zone_A_pct_mean}\of\summarytable \global\let\ClAa=\pgfplotsretval
@@ -1169,7 +1197,7 @@ The parameter head estimates a ten-component physiological vector $\theta_p$ for
 
 Preregistered external validation (Table~\ref{tab:si}) was carried out for $S_I$ alone, for three concrete reasons rather than by omission. First, $S_I$ is the one component with a direct clinical measurement analogue: a euglycemic clamp measures exactly this quantity, giving a real external target to validate against, whereas the remaining parameters have no equivalent bedside measurement available in OhioT1DM\@. Second, $S_I$ has literature-sourced plausible bounds specific to insulin-dependent diabetes~\cite{ref33}, giving its sigmoid-mapped range a population anchor that is not equally well established for every other compartment parameter. Third, the ablation (Table~\ref{tab:ablation}, A3 vs.\ A4) already shows that per-patient parameter estimation is accuracy-neutral overall (0.07--0.76 mg/dL), so the contribution claimed here is the external validity of one physiological quantity, not evidence that the other nine are unimportant. One concrete obstacle already blocks part of this extension: body weight is unavailable because every OhioT1DM file carries the same de-identification placeholder, which is why a body-weight-normalized analysis was not attempted for any parameter, not only $S_I$.
 
-Priority extensions are multi-seed replication, external validation on a larger cohort, identifiability analysis of patient parameters, preregistered validation of the remaining Bergman and absorption parameters ($p_1, n, V_G, V_I$) against literature-sourced population anchors comparable to those used for $S_I$, time-varying $S_I$, a joint multi-horizon predictive distribution, decision-theoretic alarm selection, longer context, and prospective validation of counterfactual meal and insulin interventions. Prediction Error-Grid Analysis (PRED-EGA) was designed specifically for glucose predictors~\cite{ref53} and is a natural future addition, but it is not reported here because its complete operational boundaries were not independently reconstructed in the audited implementation.
+Priority extensions are multi-seed replication, external validation on a larger cohort, identifiability analysis of patient parameters, preregistered validation of the remaining Bergman and absorption parameters ($p_1, n, V_G, V_I$) against literature-sourced population anchors comparable to those used for $S_I$, time-varying $S_I$, a joint multi-horizon predictive distribution, decision-theoretic alarm selection, longer context, and prospective validation of counterfactual meal and insulin interventions. Prediction Error-Grid Analysis (PRED-EGA) was designed specifically for glucose predictors~\cite{ref53}, and its complete operational boundaries have now been implemented and evaluated across all horizons (Table~\ref{tab:predega}).
 
 %=================================================================
 \section{Conclusion}
