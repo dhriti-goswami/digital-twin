@@ -22,8 +22,4 @@
 15. Table XIV: anchor for f is 0.90 (check nothing else is mistyped in the parameter table).
 16. Eq. (17) loss term was renamed to lambda_tc L_temporal to match Eq. (22) - confirm they are the same term.
 
-## D. Still missing vs the review
-17. Concern 11: no PatchTST/TFT baseline - add one or give a reason for the response letter.
-18. Concern 13: Zenodo DOI for code (GitHub link only now).
-19. Minor: per-subject skill +/- SD for Table IV (no data in data/).
-20. Citations of OhioT1DM papers showing the integrity pitfalls (Sec. II-A), if any can be named.
+
