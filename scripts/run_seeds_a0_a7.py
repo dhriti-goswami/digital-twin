@@ -222,11 +222,11 @@ def main():
     print(df_comp.to_string(index=False))
 
     Path("results/tables").mkdir(parents=True, exist_ok=True)
-    Path("paper/digital-twin-v3-final/data").mkdir(parents=True, exist_ok=True)
+    Path("paper/digital-twin-v4/data").mkdir(parents=True, exist_ok=True)
     df_seeds.to_csv("results/tables/multiseed_a0_vs_a7.csv", index=False)
-    df_seeds.to_csv("paper/digital-twin-v3-final/data/multiseed_a0_vs_a7.csv", index=False)
+    df_seeds.to_csv("paper/digital-twin-v4/data/multiseed_a0_vs_a7.csv", index=False)
     df_comp.to_csv("results/tables/multiseed_wilcoxon_tests.csv", index=False)
-    df_comp.to_csv("paper/digital-twin-v3-final/data/multiseed_wilcoxon_tests.csv", index=False)
+    df_comp.to_csv("paper/digital-twin-v4/data/multiseed_wilcoxon_tests.csv", index=False)
 
 
 if __name__ == "__main__":

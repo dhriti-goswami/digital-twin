@@ -23,7 +23,7 @@
 \setlength{\emergencystretch}{1.5em}
 \hbadness=10000
 
-\title{An Explainable Physics-Guided Digital Twin for Multi-Horizon Glucose Forecasting in Type 1 Diabetes}
+\title{Physics-Guided Probabilistic Glucose Forecasting in Type 1 Diabetes: An Audited Multi-Horizon Evaluation with Validated Patient-Specific Insulin Sensitivity}
 
 \author{
 \IEEEauthorblockN{Samyak Jain, Dhriti Goswami, Yugananda Malhotra}\\
@@ -37,17 +37,17 @@ sammyyakk@gmail.com; goswami.dhritid@gmail.com; yugnanda\_malhotra@yahoo.com
 \maketitle
 
 \begin{abstract}
-\textbf{Background and objective:} Glucose dynamics in type 1 diabetes (T1D) are nonlinear, delayed, and patient-specific, influenced by meals and insulin. Clinically meaningful forecasting requires valid prediction horizons and comparison with persistence baselines. This study proposes an explainable, physics-guided digital twin integrating deep sequence learning with mechanistic physiological modeling for personalized, multi-horizon glucose forecasting.
+\textbf{Background and objective:} Glucose dynamics in type 1 diabetes (T1D) are nonlinear, delayed, and patient-specific, influenced by meals and insulin. Clinically meaningful forecasting requires valid prediction horizons and comparison with persistence baselines. This study proposes a physics-guided probabilistic forecaster under an audited protocol integrating deep sequence learning with mechanistic physiological modeling for personalized, multi-horizon glucose forecasting.
 
-\textbf{Methods:} A gap-aware pipeline was developed using the OhioT1DM dataset, ensuring accurate horizon-specific glucose targets. The model combines a compact Transformer encoder with a differentiable Bergman Minimal Model, extended with subcutaneous insulin and gut absorption states, patient-specific parameter estimation, and a non-crossing quantile head for uncertainty. Twelve subjects and 26,498 test windows were evaluated under personalized and subject-disjoint leave-one-subject-out (LOSO) protocols. Performance was assessed across 30–120-minute horizons using RMSE, skill over persistence, Clarke/Parkes error distributions, hypoglycemia-alarm sensitivity, and feature attribution.
+\textbf{Methods:} A gap-aware pipeline was developed using the OhioT1DM dataset (12 subjects), which admitted only windows whose targets were real CGM readings exactly 30, 60, 90, and 120~min ahead (26,498 test windows). The model couples a compact Transformer encoder to a differentiable Bergman minimal model, extended with subcutaneous insulin and gut absorption states, through a physics residual and a mechanistic prior, with patient-specific parameter estimation and a non-crossing quantile head for uncertainty. Performance was assessed under personalized (temporal) and leave-one-subject-out (LOSO) protocols using RMSE, skill over persistence, Clarke/Parkes error grids, hypoglycemia-alarm sensitivity, and feature attribution. A pre-specified ablation with subject-level Wilcoxon tests and Holm correction tested the contribution of physics, and pre-specified checks tested the validity of insulin sensitivity ($S_I$).
 
-\textbf{Results:} Across all 12 subjects, the model achieved RMSE values of 18.84, 30.52, 38.60, and 44.46 mg/dL at 30, 60, 90, and 120 minutes, respectively, with a 19.4-21.2\% improvement over persistence. LOSO validation confirmed the personalization while the physics constraints preserved accuracy and enabled estimation of patient-specific insulin sensitivity. The lower-quantile alarm further improved hypoglycemia sensitivity.
+\textbf{Results:} Personalized RMSE was 18.84, 30.52, 38.60, and 44.46~mg/dL at 30, 60, 90, and 120~min (19.4--21.2\% skill over persistence); at 30~min all 12 subjects improved, and under LOSO all 12 still beat persistence by MAE. Physics did not improve accuracy in the pre-specified single-seed test (30-min MAE 13.25 vs.\ 13.51~mg/dL; Holm $p=0.105$), but across five seeds it reduced MAE at every horizon, by 0.51~mg/dL at 30~min and 2.38~mg/dL at 120~min (Holm $p=0.002$). It also yielded an insulin-sensitivity estimate ($S_I$) that varied between subjects (CV 35.8\%), was stable within them (ICC 0.89), and fell with total daily insulin ($\rho=-0.84$), though not under LOSO\@. The 5-min glucose rate of change was the top predictor under both attribution methods. At 30~min, the median forecast detected 55.1\% of hypoglycemic readings; a 10th-percentile alarm raised this to 91.8\% at a precision of 0.347.
 
-\textbf{Conclusion:} Physiological constraints with AI-based forecasting support personalized diabetes monitoring. The proposed framework demonstrates potential for clinical translation through stable insulin sensitivity estimation and improved hypoglycemia prediction, while supporting interpretable,physics-guided forecasting.
+\textbf{Conclusion:} Physiological structure yielded a stable insulin-sensitivity estimate, consistent with insulin dose under personalized evaluation, and small but consistent accuracy gains. Calibrated predictive tails, not error-grid scores, determine hypoglycemia detection.
 \end{abstract}
 
 \begin{IEEEkeywords}
-continuous glucose monitoring, digital twin, type 1 diabetes, physics-informed learning, Transformer, uncertainty quantification, explainable artificial intelligence
+continuous glucose monitoring, type 1 diabetes, physics-guided machine learning, Bergman minimal model, probabilistic forecasting, hypoglycemia, insulin sensitivity
 \end{IEEEkeywords}
 
 %=================================================================
@@ -55,26 +55,28 @@ continuous glucose monitoring, digital twin, type 1 diabetes, physics-informed l
 
 \subsection{Background}
 
-Type 1 diabetes (T1D) is a disease involving the immune-mediated destruction pancreatic $\beta$-cells and thus individuals with type 1 diabetes require lifelong exogenous insulin replacement and glucose monitoring, disease-specific education, diet, and lifestyle modification remain cornerstones of its management alongside insulin therapy. Glucose-insulin dynamics, however, are governed by nonlinear, patient-specific physiology, as described mechanistically through the Bergman Minimal Model~\cite{ref1}. Despite advancements in continuous glucose monitoring (CGM) hardware, it remains very difficult to build a system that converts raw diabetes data into personalized, actionable medical recommendations~\cite{ref2}.
+Type 1 diabetes (T1D) is a disease involving the immune-mediated destruction of pancreatic $\beta$-cells. Individuals with T1D therefore require lifelong exogenous insulin replacement and glucose monitoring, and disease-specific education, diet, and lifestyle modification remain cornerstones of management alongside insulin therapy. Glucose--insulin dynamics, however, are governed by nonlinear, patient-specific physiology, as described mechanistically through the Bergman minimal model~\cite{ref1}. Despite advancements in continuous glucose monitoring (CGM) hardware, it remains very difficult to build a system that converts raw diabetes data into personalized, actionable medical recommendations~\cite{ref2}.
 
-This has driven the development of machine-learning approaches for CGM forecasting progressing from black-box sequence models, including recurrent networks to attention-based Transformer architectures
-[\hyperref[ref3label]{3}-\hyperref[ref4label]{4}]which can achieve strong short-horizon accuracy but function as black boxes offering clinicians little interpretability~\cite{ref3,ref5}. This limitation motivated a shift toward increasingly physiology-aware approaches that fold a physics-consistency penalty derived from mechanistic models, following the Physics-Informed Neural Network (PINN) paradigm~[\hyperref[ref6label]{6}-\hyperref[ref10label]{10}]. However, validation has typically remained simulator-only or narrowly dataset-specific~[\hyperref[ref7label]{7}-\hyperref[ref8label]{8}]. More recent systems introduced patient-specific digital twins and prospective evaluation~[\hyperref[ref11label]{11}-\hyperref[ref13label]{13}]. Yet translating predictions into safe, actionable recommendations remains challenging, with reinforcement-learning approaches still considered insufficiently clinically safe~\cite{ref14}.
+This has driven the development of machine-learning approaches for CGM forecasting, progressing from recurrent networks to attention-based Transformer architectures~[\hyperref[ref19label]{3}-\hyperref[ref22label]{6}], which can achieve strong short-horizon accuracy but offer clinicians little interpretability~[\hyperref[ref3label]{7}-\hyperref[ref5label]{8}]. This limitation motivated a shift toward physiology-aware approaches that add a physics-consistency penalty derived from mechanistic models, following the Physics-Informed Neural Network (PINN) paradigm~[\hyperref[ref8label]{9}-\hyperref[ref12label]{13}]. However, validation has typically remained simulator-only or narrowly dataset-specific~[\hyperref[ref9label]{10}-\hyperref[ref10label]{11}]. More recent systems introduced patient-specific digital twins~[\hyperref[ref13label]{14}-\hyperref[ref16label]{16}] and prospective evaluation~[\hyperref[ref17label]{17}-\hyperref[ref18label]{18}]. Yet translating predictions into safe, actionable recommendations remains challenging, with reinforcement-learning approaches still considered insufficiently clinically safe~\cite{ref6}.
 
-The field has therefore advanced along several parallel tracks;interpretable risk prediction, physiology-constrained forecasting, digital-twin construction and validation, and increasingly capable sequence-modelling backbones that remain largely disconnected from one another.
+The field has therefore advanced along several parallel tracks (interpretable risk prediction, physiology-constrained forecasting, digital-twin construction and validation, and increasingly capable sequence-modelling backbones) that remain largely disconnected from one another.
 
 \subsection{Literature Review}
 
-Systematic reviews of Type 1 diabetes digital twins note that existing systems are not yet comprehensive, multi-scale virtual replicas, and most model glucose-insulin metabolism in isolation rather than the full patient~\cite{ref2}, motivating a more integrated, personalized digital twin.
+Systematic reviews of Type 1 diabetes digital twins note that existing systems are not yet comprehensive, multi-scale virtual replicas, and most model glucose--insulin metabolism in isolation rather than the full patient~\cite{ref2}.
 
-A natural first step was showing CGM-based risk prediction could be both accurate and interpretable. Explainable short-horizon hypoglycemia/hyperglycemia prediction models added SHAP-based feature attributions to opaque risk classifiers, demonstrating strong, interpretable patient-level forecasting~\cite{ref3}. This explained \emph{why} a risk was predicted but not what to do about it, motivating subsequent work using SHAP attributions to guide bounded, one-step behavioural recommendations on OhioT1DM~\cite{ref6}. However, the approach remained exploratory and was not considered clinically safe, shifting subsequent focus toward postprandial glucose response. Explainable postprandial glucose modeling attributed meal-response forecasts to specific inputs, achieving personalized, transparent prediction~\cite{ref7}, though remaining purely data-driven with no physiological constraint.
+Explainable short-horizon hypoglycemia/hyperglycemia prediction models added SHAP-based feature attributions to opaque risk classifiers, demonstrating interpretable patient-level prediction~\cite{ref3}. Other work used SHAP attributions to guide bounded, one-step behavioural recommendations on OhioT1DM, though the approach remained exploratory and was not considered clinically safe~\cite{ref6}. Explainable postprandial glucose modeling attributed meal-response forecasts to specific inputs, achieving personalized, transparent prediction, though remaining purely data-driven with no physiological constraint~\cite{ref7}.
 
-Next, physiology was embedded directly into the learning objective. Early PINN-based glucose predictors added a physics-consistency penalty to sequence learning, improving short-term in-silico prediction while preserving mechanistic plausibility, though validation stayed simulator-only~\cite{ref9}. Bergman-constrained PINN models tied the network explicitly to the Bergman Minimal Model, improving physiological plausibility on real T1DM data, though evaluation remained narrow and dataset-specific~\cite{ref10}. Hybrid physiology and deep learning architectures embedded glucose--insulin dynamics into both architecture and training, achieving reliable predictions under limited real-subject data, but remained forecasting models rather than virtual patients~\cite{ref11}. Physics-guided sequence models addressed recurrent black-box models' inability to distinguish meal and insulin effects via physics-LSTM hybrids, bridging sequence modeling and physiology-guided forecasting, still without a full virtual-patient representation~\cite{ref12}.
+Physiology has also been embedded directly into the learning objective. Early PINN-based glucose predictors added a physics-consistency penalty to sequence learning, improving short-term in-silico prediction, though validation stayed simulator-only~\cite{ref9}. Bergman-constrained PINN models tied the network explicitly to the Bergman minimal model, improving physiological plausibility on real T1DM data, though evaluation remained narrow and dataset-specific~\cite{ref10}. Hybrid physiology and deep-learning architectures embedded glucose--insulin dynamics into both architecture and training, achieving reliable predictions under limited real-subject data, but remained forecasting models rather than virtual patients~\cite{ref11}. Physics--LSTM hybrids addressed recurrent black-box models' inability to distinguish meal and insulin effects, though still without a full virtual-patient representation~\cite{ref12}.
 
-By integrating physiology-based models with LSTM learning, it produced patient-specific virtual subjects for in-silico therapy testing, moving from forecasting toward simulation, though remaining a research framework rather than a clinically validated system~\cite{ref13}. An open-source digital-twin methodology addressed this by identifying a personalized glucose-insulin model directly from routine CGM, insulin, and meal data, showing non-invasive, CGM-only twinning suffices for personalized counterfactual simulation, though use remained mainly retrospective~\cite{ref14}. Simulation-to-reality data augmentation then used simulated patients as synthetic data generators to offset limited T1D data availability, improving glucose prediction model training without yet proving twins support decision-making~\cite{ref15}. Twin fidelity was addressed by validating physiologically constrained digital twins against real exercise data from 394 cases -- strong evidence simulated twins match observed clinical dynamics, though still simulation-centric~\cite{ref16}. This gap was partly closed by a randomized clinical trial of a twin-enhanced decision-support system, showing improved time-in-range and reduced hypoglycaemia within a bolus-dosing-centered system~\cite{ref17}, further extended to full adaptive biobehavioural co-adaptation for automated insulin delivery (AID) in a six-month randomized trial, where each participant's AID data generated a cloud-based digital twin biweekly re-optimizing therapy parameters, overcoming the typical time-in-range plateau -- though optimizing therapy periodically rather than forecasting glucose continuously in real time~\cite{ref18}.
+Integrating physiology-based models with LSTM learning produced patient-specific virtual subjects for in-silico therapy testing, though as a research framework rather than a clinically validated system~\cite{ref13}. An open-source digital-twin methodology identified a personalized glucose--insulin model directly from routine CGM, insulin, and meal data for counterfactual simulation, though use remained mainly retrospective~\cite{ref14}. Simulation-to-reality augmentation used simulated patients as synthetic data generators to offset limited T1D data~\cite{ref15}, and physiologically constrained digital twins were validated against real exercise data from 394 cases~\cite{ref16}. Randomized clinical trials showed that a twin-enhanced decision-support system improved time-in-range and reduced hypoglycaemia~\cite{ref17}, and that cloud-based digital twins re-optimizing automated insulin delivery (AID) parameters every two weeks overcame the typical time-in-range plateau, though optimizing therapy periodically rather than forecasting glucose continuously~\cite{ref18}.
 
-In parallel, attention-based Transformer forecasting on OhioT1DM outperformed classical machine-learning baselines (XGBoost, 1D-CNN) for short-horizon prediction but remained a plain sequence model with limited interpretability~\cite{ref19}, extended to interpretable multi-horizon forecasting with attention over temporal and static covariates, though without benchmarking against an explicit recurrent-hybrid baseline~\cite{ref20}. A hybrid Transformer-LSTM architecture addressed pure attention models' under-modeling of short-term fluctuations, improving short/medium-horizon accuracy, though horizon coverage stopped short of 120 minutes~\cite{ref21}. Long-horizon hybrid Transformer-LSTM models pushed prediction to 120 minutes with richer clinical inputs and strong safety-zone performance, but remained purely data-driven~\cite{ref22}. Metadata-aware personalization improved individualized forecasting via physiological signals, demographics, and device metadata, but required centralized pooling of sensitive data~\cite{ref23}, addressed by personalized federated learning training models across sites without centralizing data, focused on high-risk glycaemic-excursion regions, though not addressing on-device efficiency or interpretability~\cite{ref24}. Practical deployability was addressed via lightweight, edge-deployable Transformer models, still lacking native uncertainty quantification or interpretability~\cite{ref25}. A Temporal Fusion Transformer with built-in attention-based feature/temporal importance and calibrated predictive uncertainty addressed this directly, outperforming prior baselines by $\geq$13\% RMSE, though attention weights weren't validated against physiological ground truth~\cite{ref26}. Self-supervised Transformer pretraining produced reusable glucose representations supporting multiple downstream tasks (screening, dietary prediction), but lacked grounding in verified clinical guidelines~\cite{ref27}, addressed by a retrieval-augmented generation framework for diabetes education, retrieving verified medical content before generation to reduce hallucination and improve response accuracy, though applied to conversational education rather than numerical forecasting~\cite{ref28}. Most recently, retrieval-augmented forecasting applied this contextualization directly to CGM prediction, drawing on similar historical episodes rather than raw sequences alone, but still requiring mechanistic grounding, SHAP-style explanation, and prospective clinical validation~\cite{ref29}.
+In parallel, attention-based Transformer forecasting on OhioT1DM outperformed classical machine-learning baselines (XGBoost, 1D-CNN) for short-horizon prediction but remained a plain sequence model with limited interpretability~\cite{ref19}. Other work added interpretable multi-horizon attention over temporal and static covariates~\cite{ref20}. A hybrid Transformer--LSTM architecture improved short- and medium-horizon accuracy, though horizon coverage stopped short of 120 minutes~\cite{ref21}, while long-horizon hybrids reached 120 minutes with richer clinical inputs but remained purely data-driven~\cite{ref22}. Personalized federated learning allowed models to be trained across multiple sites without sharing patient data, but did not consider on-device efficiency or interpretability~\cite{ref24}. Lightweight Transformers made edge deployment more practical, although they lacked built-in uncertainty estimation and clear interpretability~\cite{ref25}. A Temporal Fusion Transformer improved RMSE by $\geq$13\% over earlier baselines and provided feature and temporal importance with calibrated uncertainty, but its attention patterns were not validated against physiological ground truth~\cite{ref26}. Self-supervised Transformer pretraining learned reusable glucose representations for different downstream tasks~\cite{ref27}. Retrieval-augmented forecasting used similar historical episodes rather than raw sequences alone, but still lacked mechanistic grounding, SHAP-based explanations, and prospective clinical validation~\cite{ref29}.
 
-Table~\ref{tab:landscape} situates this study among OhioT1DM forecasting approaches, grouped into physics-informed, non-physics learned/statistical, physics-informed LSTM, and physics-informed hybrid architectures, with the proposed method in the latter category.
+
+Three questions therefore remain open. First, how much of the accuracy reported on OhioT1DM survives an evaluation with verified horizons, a persistence baseline, and subjects rather than overlapping windows as the unit of analysis? Second, does embedding physiology improve point accuracy, or does its value lie in the parameters it produces, and are those parameters valid? Third, can a calibrated predictive distribution detect hypoglycemia that an accurate median forecast misses?
+
+Table~\ref{tab:landscape} situates this study among OhioT1DM forecasting approaches, grouped into non-physics learned or statistical sequence models and physics-informed hybrids; the proposed method belongs to the latter group.
 
 \begin{table*}[t]
 \centering
@@ -101,7 +103,7 @@ Reference & Methodology & RMSE@30 & MAE@30 & RMSE@60 & MAE@60 & RMSE@90 & MAE@90
 \multicolumn{10}{l}{\textit{Physics-informed + other-architecture hybrid (6 subjects, official split)$^{\dagger}$}} \\
 \cite{ref58} & Physiological model + ANN & 19.33 & -- & 31.72 & -- & \multicolumn{2}{c}{not reported$^{\dagger}$} & \multicolumn{2}{c}{not reported$^{\dagger}$} \\
 \midrule
--- & \textbf{Current Work: Physics-guided PINN (Bergman) + Transformer} & \textbf{18.74} & \textbf{13.24} & \textbf{31.16} & \textbf{22.55} & \textbf{39.52} & \textbf{29.14} & \textbf{45.39} & \textbf{34.03} \\
+-- & \textbf{Current Work: Hybrid physics-guided Transformer (Bergman penalty + prior)} & \textbf{18.74} & \textbf{13.24} & \textbf{31.16} & \textbf{22.55} & \textbf{39.52} & \textbf{29.14} & \textbf{45.39} & \textbf{34.03} \\
 -- & \emph{Persistence baseline (ours)} & 24.22 & 17.45 & 40.11 & 29.51 & 51.15 & 38.34 & 58.98 & 44.83 \\
 \bottomrule
 \end{tabular}%
@@ -113,31 +115,31 @@ $^{\dagger}$ All listed studies use the 2020 six-subject official-split cohort e
  
 
 
-\subsection{Objectives}
+\subsection{Objectives and Contributions}
 \begin{itemize}
 \sloppy
-\item To develop a physics-guided digital twin that couples a Transformer forecaster with Bergman Minimal Model constraints, delivering 30,60,90,120 minute glucose forecasts that consistently outperform persistence.
-\item To estimate patient-specific insulin sensitivity from routine CGM, insulin, and meal data, and to verify that it is individual, stable, and consistent with total daily insulin dose under personalized evaluation.
-\item To quantify forecast uncertainty and improve hypoglycemia detection through calibrated lower-quantile alarms.
-\item To support interpretation of predictions through integrated-gradients attributions cross-checked with permutation importance, and to validate the framework on real OhioT1DM data under both personalized and subject-disjoint (leave-one-subject-out) protocols.
+\item To develop a hybrid physics-guided forecaster that couples a Transformer with Bergman minimal-model constraints, delivering 30, 60, 90, and 120-minute glucose forecasts that consistently outperform a validated persistence baseline.
+\item To evaluate the framework under an audited protocol, using only real CGM targets and subjects as the unit of analysis, and to test it under both personalized and subject-disjoint (leave-one-subject-out) protocols on identical windows.
+\item To separate the value of physics from accuracy gain through a pre-specified ablation and a 5-seed replication, rather than reporting accuracy alone.
+\item To estimate patient-specific insulin sensitivity from routine CGM, insulin, and meal data, and to verify through pre-specified checks that it is individual, stable, and consistent with total daily insulin dose.
+\item To quantify forecast uncertainty and recover hypoglycemic events missed by the median forecast through calibrated lower-quantile alarms.
 \end{itemize}
 
-The paper is structured as follows. Section~I introduces the background, related literature, and objectives. Section~II details the methodology, including data acquisition and model development. Section~III presents the experimental results and model evaluation. Section~IV discusses the findings, Section~V covers limitations and future work, and Section~VI concludes. The appendix provides notation and supporting details.
+The paper is structured as follows. Section~I introduces the background, related literature, and objectives. Section~II details the methodology, including data acquisition and model development. Section~III presents the experimental results and model evaluation. Section~IV discusses the findings, Section~V covers limitations and future work, and Section~VI concludes. The appendix lists the patient-parameter vector; full notation tables are in the Supplementary Material.
 
 %=================================================================
 
 \section{Methodology}
 
-\subsection{Audit and Design Requirements}
+\subsection{Integrity Requirements}
 
+Glucose-forecasting pipelines on OhioT1DM are exposed to several integrity pitfalls that can inflate or invalidate reported accuracy: windows that span recording gaps, so that the nominal horizon differs from the true one; forward-filled or interpolated CGM values used as prediction targets; random splits of strongly overlapping windows, which place near-duplicate samples in both training and test sets; overlapping windows, rather than subjects, used as the unit of statistical analysis; and no persistence baseline, without which absolute error values cannot be interpreted. Published no-change baselines for OhioT1DM~[\hyperref[ref56label]{36}-\hyperref[ref57label]{37}] make the last pitfall straightforward to check.
 
-The rebuilt system began with an audit of an earlier pipeline. The main faults were: physics disabled in every checkpoint-producing script; an algebraic rather than dynamic remote-insulin state; gap-spanning windows with mislabeled horizons; forward-filled CGM values used as targets; randomly split, strongly overlapping windows; defective Clarke-grid logic; a time-reversed insulin-on-board kernel; and no persistence baseline. The earlier reported 30-minute RMSE of 30.4~mg/dL was worse than the published persistence value of approximately 22.5~mg/dL.
-
-Each failure became a design constraint or test. The rebuilt implementation contains 234 targeted tests, begins evaluation with persistence, separates the unit of analysis (subject) from the number of overlapping windows, and regenerates all tables from stored predictions.
+The pipeline used here was built to exclude each pitfall by design: each became a design constraint or one of 234 automated tests. Evaluation begins with persistence, subjects rather than windows are the unit of analysis, and every table is regenerated from stored predictions.
 
 \subsection{Dataset and Temporal Integrity}
 
-OhioT1DM contains 12 subjects in the 2018 and 2020 cohorts and 166,443 CGM observations sampled nominally every five minutes, together with basal and bolus insulin, carbohydrate, activity, sleep, and wearable channels~[\hyperref[ref30label]{30}-\hyperref[ref31label]{31}]. The official split follows the same subjects forward in time and therefore measures personalized forecasting, not cross-subject generalization. The 2020 cohort's first test hour is excluded according to its challenge protocol; the 2018 cohort is not modified in this way.
+OhioT1DM contains 12 subjects in the 2018 and 2020 cohorts and 166,443 CGM observations sampled nominally every five minutes, together with basal and bolus insulin, carbohydrate, activity, sleep, and wearable channels~[\hyperref[ref30label]{38}-\hyperref[ref31label]{39}]. The official split follows the same subjects forward in time and therefore measures personalized forecasting, not cross-subject generalization. The 2020 cohort's first test hour is excluded according to its challenge protocol; the 2018 cohort is not modified in this way.
 
 All streams are aligned to an exact five-minute grid without dropping rows. Missing CGM runs of at most ten minutes may be interpolated for input construction, but interpolated values are never accepted as targets. A sequence is emitted only if its 24-step (two-hour) input satisfies the coverage rule and every target is a real observation exactly $h \in \{30, 60, 90, 120\}$ minutes after the anchor. The scaler is fit only on training-fold slots, with each physical slot counted once rather than once per overlapping window.
 
@@ -150,11 +152,11 @@ not the raw window count.
 
 \subsection{System Overview}
 
-Fig.~\ref{fig:pipeline} outlines the full pipeline from raw recordings to reported outcomes. Data collected from all twelve OhioT1DM subjects, comprising continuous glucose readings, insulin delivery, and meal logs, are first aligned to a uniform five-minute time grid; genuine gaps in recording are preserved rather than interpolated over, so that no synthetic values enter the pipeline. From this aligned record, two parallel processes follow. The grid-aligned insulin and meal signals are passed through a simplified physiological model of glucose regulation, based on the Bergman minimal model together with subcutaneous insulin and gut absorption compartments, which yields time-varying estimates of insulin on board, carbohydrate on board, remote insulin action, and the rate of glucose appearance. These physiological estimates are then combined with the glucose signal itself, insulin and meal timing, and time-of-day information to form a single 35-feature representation at each time step.
+Fig.~\ref{fig:pipeline} outlines the full pipeline from raw recordings to reported outcomes. Data collected from all twelve OhioT1DM subjects, comprising continuous glucose readings, insulin delivery, and meal logs, are first aligned to a uniform five-minute time grid; genuine gaps in recording are preserved, and only short gaps of at most ten minutes may be interpolated for model inputs, never for forecast targets. From this aligned record, two parallel processes follow. The grid-aligned insulin and meal signals are passed through a simplified physiological model of glucose regulation, based on the Bergman minimal model together with subcutaneous insulin and gut absorption compartments, which yields time-varying estimates of insulin on board, carbohydrate on board, remote insulin action, and the rate of glucose appearance. These physiological estimates are then combined with the glucose signal itself, insulin and meal timing, and time-of-day information to form a single 35-feature representation at each time step.
 
 This feature representation is grouped into two-hour input windows, and windows are retained only when both the input span and the corresponding forecast target are fully intact, so that no window silently spans a genuine data gap. The resulting windows are evaluated under two complementary protocols: an official, personalized setting in which each subject's earlier data are available for training, and a twelve-fold leave-one-subject-out setting in which the model is evaluated on subjects it has never encountered. Each window is then processed by a compact Transformer encoder, which produces two outputs in parallel: an estimate of the subject's individual physiological parameters, and a probabilistic glucose forecast expressed as a median trajectory bounded by non-crossing lower and upper quantiles.
 
-These two outputs are not independent. The estimated physiological parameters are used to re-simulate the same mechanistic equations introduced earlier, and the resulting trajectory is compared against the network's own forecast at multiple points across the two-hour horizon; the discrepancy between the two constitutes a physics-consistency signal that is folded back into training, alongside a regularization term that keeps the estimated parameters within physiologically plausible bounds. In this way, the mechanistic model contributes to the pipeline twice: once as an input feature, and once as a differentiable constraint on the learned forecast. Finally, forecasts from both evaluation protocols are scored on a per-subject basis and summarized across the cohort, using both conventional accuracy metrics and clinically oriented measures of hypoglycemia detection.
+These two outputs are not independent. The estimated physiological parameters are used to re-simulate the same mechanistic equations introduced earlier, and the resulting trajectory is compared against the network's own forecast at multiple points across the two-hour horizon; the discrepancy between the two constitutes a physics-consistency signal that is folded back into training, alongside a regularization term that keeps the estimated parameters within physiologically plausible bounds. In this way, the mechanistic model contributes to the pipeline twice: once as an input feature, and once as a differentiable constraint on the learned forecast. Because physics enters training both as a residual penalty and as a gated prior, we refer to the model as a \emph{hybrid physics-guided} forecaster (penalty + prior); ``PINN'' is used only for the literature paradigm. Finally, forecasts from both evaluation protocols are scored on a per-subject basis and summarized across the cohort, using both conventional accuracy metrics and clinically oriented measures of hypoglycemia detection.
 
 
 \begin{figure*}[p]
@@ -354,14 +356,14 @@ These two outputs are not independent. The estimated physiological parameters ar
 
 \end{tikzpicture}
 
-\caption{\small\textit{Audited digital-twin pipeline. OhioT1DM glucose and related patient data are aligned to five-minute intervals and processed through two parallel paths: a deep-learning model and a physiological model. The deep-learning model predicts future glucose levels and estimates patient-specific parameters, while the physiological model represents insulin and glucose dynamics. Physiological information is used both as an input to the model and as a training constraint to improve prediction consistency.
+\caption{\small\textit{Audited forecasting pipeline of the hybrid physics-guided model. OhioT1DM glucose and related patient data are aligned to five-minute intervals and processed through two parallel paths: a deep-learning model and a physiological model. The deep-learning model predicts future glucose levels and estimates patient-specific parameters, while the physiological model represents insulin and glucose dynamics. Physiological information is used both as an input to the model and as a training constraint to improve prediction consistency.
 }}
 \label{fig:pipeline}
 \end{figure*}
 
 \subsection{Mechanistic Patient Model}
 
-The physiological core extends the Bergman minimal model and its insulin-sensitivity index~\cite{ref1,ref32} as shown in \ (Eqs.~\eqref{eq:2}-\eqref{eq:4}):
+The physiological core extends the Bergman minimal model and its insulin-sensitivity index~\cite{ref1,ref32}, as given in Eqs.~\eqref{eq:2}--\eqref{eq:4}:
 \begin{align}
 \dot{G} &= -(p_1 + X)\,G + p_1 G_b + \frac{R_a(t)}{V_G}, \label{eq:2}\\
 \dot{X} &= -p_2 X + p_3 (I - I_b), \label{eq:3}\\
@@ -370,14 +372,14 @@ The physiological core extends the Bergman minimal model and its insulin-sensiti
 
 Here $G$ is glucose, $I$ plasma insulin, $X$ remote insulin action, and subscript $b$ denotes basal state. All rates are per minute. Basal subtraction in (\ref{eq:3}) is essential: at $I = I_b$, $X^* = 0$ and $G = G_b$ is an equilibrium. Driving the equation with total insulin instead would create a spurious downward glucose attractor.
 
-The patient-specific insulin sensitivity is the steady-state gain as shown in \ (Eq.~\eqref{eq:5}):
+The patient-specific insulin sensitivity is the steady-state gain, as given in Eq.~\eqref{eq:5}:
 \begin{equation}
 S_I = \frac{p_3}{p_2}, \qquad X_{ss} = S_I (I - I_b),
 \label{eq:5}
 \end{equation}
 with units mL\,$\mu$U$^{-1}$min$^{-1}$. Parameters are mapped by sigmoid functions into physiologically sourced intervals informed by minimal-model studies in insulin-dependent diabetes~\cite{ref33} and regularized toward population anchors. Consequently, plausible range alone is not evidence of identifiability; external and stability checks are required.
 
-Subcutaneous insulin absorption follows a two-compartment model~\cite{ref34} as shown in (\ Eqs.~\eqref{eq:6}-\eqref{eq:8}):
+Subcutaneous insulin absorption follows a two-compartment model~\cite{ref34}, as given in Eqs.~\eqref{eq:6}--\eqref{eq:8}:
 \begin{align}
 \dot{S}_1 &= u_{\text{ins}}(t) - \frac{S_1}{t_{\max,I}}, \label{eq:6}\\
 \dot{S}_2 &= \frac{S_1}{t_{\max,I}} - \frac{S_2}{t_{\max,I}}. \label{eq:7}
@@ -388,19 +390,19 @@ For an impulse dose $D$, insulin on board is
 S_1 + S_2 = D\,e^{-t/t_{\max,I}}\left(1 + \frac{t}{t_{\max,I}}\right),
 \label{eq:8}
 \end{equation}
-which starts at $D$ and decreases monotonically. Carbohydrate absorption follows compartmental meal models used in T1D simulation~[\hyperref[ref35label]{35}-\hyperref[ref37label]{37}] and is represented by stomach and gut states,as shown in (\ Eqs.\eqref{eq:9}-\eqref{eq:11}):
+which starts at $D$ and decreases monotonically. Carbohydrate absorption follows compartmental meal models used in T1D simulation~[\hyperref[ref35label]{43}-\hyperref[ref37label]{45}] and is represented by stomach and gut states, as given in Eqs.~\eqref{eq:9}--\eqref{eq:11}:
 \begin{align}
 \dot{Q}_{\text{sto}} &= -k_{\text{gri}} Q_{\text{sto}} + u_{\text{carb}}(t), \label{eq:9}\\
 \dot{Q}_{\text{gut}} &= k_{\text{gri}} Q_{\text{sto}} - k_{\text{abs}} Q_{\text{gut}}, \label{eq:10}\\
 R_a(t) &= f\, k_{\text{abs}} Q_{\text{gut}}(t), \label{eq:11}
 \end{align}
-so carbohydrate on board is $Q_{\text{sto}} + Q_{\text{gut}}$ and absorbed mass is conserved. For implementation, the non-glucose compartments are collected as shown in (\ Eq.\eqref{eq:12}):
+so carbohydrate on board is $Q_{\text{sto}} + Q_{\text{gut}}$ and absorbed mass is conserved. For implementation, the non-glucose compartments are collected, as given in Eq.~\eqref{eq:12}:
 \begin{equation}
 \mathbf{z} = {[S_1, S_2, I, Q_{\text{sto}}, Q_{\text{gut}}, X]}^{\mathsf T}, \quad \mathbf{u} = {[u_{\text{ins}}, u_{\text{carb}}, I_b]}^{\mathsf T}.
 \label{eq:12}
 \end{equation}
 
-With parameters held constant over one grid interval, $\dot{\mathbf{z}} = A\mathbf{z} + B\mathbf{u}$ has the exact zero-order-hold update (a standard control-theory discretization technique, not attributed to a specific glucose-modeling source) as shown in (\ Eq.\eqref{eq:13}):
+With parameters held constant over one grid interval, $\dot{\mathbf{z}} = A\mathbf{z} + B\mathbf{u}$ has the exact zero-order-hold update (a standard control-theory discretization technique, not attributed to a specific glucose-modeling source), as given in Eq.~\eqref{eq:13}:
 \begin{equation}
 \mathbf{z}_{k+1} = A_d \mathbf{z}_k + B_d \mathbf{u}_k, \qquad
 \begin{bmatrix} A_d & B_d \\ 0 & I \end{bmatrix} = \exp\!\left(\Delta \begin{bmatrix} A & B \\ 0 & 0 \end{bmatrix}\right).
@@ -413,14 +415,14 @@ This matrix-exponential formulation preserves the affine basal term through the 
 
 Each timestep contains 35 named features in six groups: glucose level, multiscale rates of change and rolling statistics; delivered insulin and timing; meals and timing; mechanistic states (IOB, COB, plasma insulin, remote action, and glucose appearance); cyclic time; and context/sensor variables. A two-hour window $X \in \mathbb{R}^{24 \times 35}$ is standardized using training-only statistics.
 
-The forecasting network is deliberately small (approximately 79,000 parameters) because the effective sample size is limited. A linear projection and positional encoding feed a Transformer encoder~\cite{ref38}. As per (\ Eq.\eqref{eq:14})Attention pooling gives :
+The forecasting network is deliberately small (approximately 79,000 parameters) because the effective sample size is limited. A linear projection and positional encoding feed a Transformer encoder~\cite{ref38}. Attention pooling, Eq.~\eqref{eq:14}, gives
 \begin{equation}
 z = \sum_{t=1}^{24} \alpha_t h_t, \qquad \alpha_t = \frac{\exp(w^\top h_t)}{\sum_j \exp(w^\top h_j)},
 \label{eq:14}
 \end{equation}
 avoiding the equal weighting of old and recent measurements induced by mean pooling.
 
-One head estimates the ten-component subject parameter vector $\theta_p$. A second predicts a cubic B-spline trajectory as shown in (\ Eq.\eqref{eq:15}) :
+One head estimates the ten-component subject parameter vector $\theta_p$. A second predicts a cubic B-spline trajectory, as given in Eq.~\eqref{eq:15}:
 \begin{equation}
 G_\theta(t) = G_0 + \sum_{k=1}^{K} c_k \big(B_k(t) - B_k(0)\big),
 \label{eq:15}
@@ -429,28 +431,28 @@ which anchors every trajectory at the last observed glucose $G_0$. Median knot v
 
 \subsection{Training Objective}
 
-The data objective combines Huber's robust loss~\cite{ref39} for the median with the pinball loss used in quantile regression~\cite{ref40} for lower and upper quantiles as shown in (\ Eq.\eqref{eq:16}):
+The data objective combines Huber's robust loss~\cite{ref39} for the median with the pinball loss used in quantile regression~\cite{ref40} for lower and upper quantiles, as given in Eq.~\eqref{eq:16}:
 \begin{equation}
 \mathcal{L}_{\text{data}} = \mathcal{L}_{\text{Huber}}(y, \hat{y}_{0.5}) + \sum_{q \in \{0.1, 0.9\}} \rho_q(y - \hat{y}_q),
 \label{eq:16}
 \end{equation}
-where $\rho_q(u) = u(q - \mathbb{1}_{u<0})$. Physics residuals are evaluated at 121 collocation points over the two-hour forecast and normalized by physiological scales, following the residual-minimization principle of PINNs~\cite{ref8}. The full objective is shown in (\ Eq.\eqref{eq:17}):
+where $\rho_q(u) = u(q - \mathbb{1}_{u<0})$. Physics residuals are evaluated at 121 collocation points over the two-hour forecast and normalized by physiological scales, following the residual-minimization principle of PINNs~\cite{ref8}. The full objective is given in Eq.~\eqref{eq:17}:
 \begin{equation}
-\mathcal{L} = \mathcal{L}_{\text{data}} + \lambda_{\text{phys}} \mathcal{L}_{\text{phys}} + \lambda_{\text{prior}} \mathcal{L}_{\text{prior}} + \lambda_{\text{stab}} \mathcal{L}_{\text{within-subject}}.
+\mathcal{L} = \mathcal{L}_{\text{data}} + \lambda_{\text{phys}} \mathcal{L}_{\text{phys}} + \lambda_{\text{prior}} \mathcal{L}_{\text{prior}} + \lambda_{\text{tc}} \mathcal{L}_{\text{temporal}}.
 \label{eq:17}
 \end{equation}
 
-Closed-form state updates replace a memory-intensive differentiable ODE solver. Adaptive loss weighting was motivated by work on gradient imbalance and uncertainty-based multi-objective learning~[\hyperref[ref41label]{41}-\hyperref[ref42label]{42}]. The selected A7 configuration applies physics from epoch one; a data-first curriculum was rejected because validation optima repeatedly occurred before the curriculum became selectable.
+Closed-form state updates replace a memory-intensive differentiable ODE solver. Adaptive loss weighting was motivated by work on gradient imbalance and uncertainty-based multi-objective learning~[\hyperref[ref41label]{49}-\hyperref[ref42label]{50}]. The selected A7 configuration applies physics from epoch one; a data-first curriculum was rejected because validation optima repeatedly occurred before the curriculum became selectable.
 
 \subsection{Evaluation and Statistical Analysis}
 
 The official temporal protocol uses each subject's earlier data for training. LOSO trains on 11 subjects and evaluates the held-out subject on the identical test windows. Metrics are computed per subject and summarized as mean $\pm$ SD\@. Persistence predicts $\hat{G}(t+h) = G(t)$. Skill is $1 - \text{RMSE}_{\text{model}}/\text{RMSE}_{\text{persistence}}$, computed from the cohort-mean RMSEs.
 
-Clinical evaluation includes Clarke and Parkes zones~[\hyperref[ref43label]{43}-\hyperref[ref45label]{45}], consensus CGM ranges~\cite{ref52}, coefficient-of-variation ratio, and Kovatchev low/high blood-glucose risk indices~[\hyperref[ref46label]{46}-\hyperref[ref47label]{47}], together with hypoglycemia sensitivity, specificity, precision, and quantile calibration. Paired model comparisons use the Wilcoxon signed-rank test~\cite{ref48} across 12 subjects with Holm multiplicity correction~\cite{ref49}; bootstrap intervals resample subjects, never overlapping windows. Test--retest reliability of $S_I$ is measured with one-way ICC(1)~\cite{ref50}, and concurrent validity uses Spearman rank correlation~\cite{ref51}.
+Clinical evaluation includes Clarke and Parkes zones~[\hyperref[ref43label]{51}-\hyperref[ref45label]{53}], consensus CGM ranges~\cite{ref52}, coefficient-of-variation ratio, and Kovatchev low/high blood-glucose risk indices~[\hyperref[ref46label]{55}-\hyperref[ref47label]{56}], together with hypoglycemia sensitivity, specificity, precision, and quantile calibration. Paired model comparisons use the Wilcoxon signed-rank test~\cite{ref48} across 12 subjects with Holm multiplicity correction~\cite{ref49}; bootstrap intervals resample subjects, never overlapping windows. Test--retest reliability of $S_I$ is measured with one-way ICC(1)~\cite{ref50}, and concurrent validity uses Spearman rank correlation~\cite{ref51}.
 
 \subsection{Preregistered Outcomes and Falsification Criteria}
 
-The analysis plan, primary/secondary endpoints, and falsification thresholds were formally committed prior to inspecting test outcomes, following rigorous open-science preregistration practice~\cite{ref79}. Specifically, the complete protocol and falsification criteria were committed to the public version-controlled repository (\url{https://github.com/sammyyakk/digital-twin}) under timestamped git commit \texttt{3baf636fce11ed5780d3e79aeee6ed8b4a5e02d4} (dated Sat Jul 25 17:49:43 2026 +0530, \texttt{docs/PREREGISTRATION.md}) before test-set evaluation began.
+The analysis plan, primary and secondary endpoints, and falsification thresholds were committed before test-set evaluation, following preregistration practice~\cite{ref79}, to the public repository (\url{https://github.com/sammyyakk/digital-twin}) as \texttt{docs/PREREGISTRATION.md} in git commit \texttt{3baf636fce11ed5780d3e79aeee6ed8b4a5e02d4} (Sat Jul 25 17:49:43 2026 +0530).
 
 The primary outcome is 30-minute MAE under the official protocol for the physiology-focused branch. Secondary outcomes include all horizons under both protocols, persistence skill, Clarke, Parkes, and PRED-EGA distributions, the ablation matrix, quantile calibration, and the three $S_I$ validation checks. Table~\ref{tab:falsification} records the criteria that were fixed in advance; unmet criteria are reported as failures rather than redefined after inspection.
 
@@ -458,11 +460,13 @@ No asymmetric hypoglycemia/hyperglycemia point-loss term is permitted, because s
 
 \subsection{Reproducibility, Hardware, and Latency}
 
-All models were implemented in PyTorch 2.10 (CUDA 12.8) and trained using AdamW with learning rate $\eta = 5 \times 10^{-4}$, weight decay $0.03$, batch size $256$, and gradient clipping at maximum $L_2$ norm $1.0$. Training proceeded for at most 70 epochs with early stopping triggered after 12 epochs without improvement in validation mean MAE across horizons. The hyperparameter search space covered encoder depth $\in \{2, 4\}$ layers, hidden dimension $d_{\text{model}} \in \{64, 128\}$, attention heads $\in \{4, 8\}$, feed-forward dimension $d_{\text{ff}} \in \{128, 512\}$, dropout $\in \{0.1, 0.2\}$, pooling mode $\in \{\text{attention}, \text{mean}, \text{last}\}$, and physics loss weighting (fixed $\lambda_{\text{phys}} \in [0.01, 1.0]$ vs.\ Kendall homoscedastic uncertainty weighting).
+Models were implemented in PyTorch 2.10 (CUDA 12.8) and trained with AdamW (learning rate $5 \times 10^{-4}$, weight decay 0.03, batch size 256, gradient clipping at $L_2$ norm 1.0) for at most 70 epochs, with early stopping after 12 epochs without improvement in validation MAE averaged across horizons. The hyperparameter search covered encoder depth $\in \{2, 4\}$, $d_{\text{model}} \in \{64, 128\}$, attention heads $\in \{4, 8\}$, $d_{\text{ff}} \in \{128, 512\}$, dropout $\in \{0.1, 0.2\}$, pooling (attention, mean, or last), and physics-loss weighting (fixed $\lambda_{\text{phys}} \in [0.01, 1.0]$ vs.\ Kendall homoscedastic uncertainty weighting).
 
-Experiments were run on a single machine equipped with an NVIDIA GeForce RTX 2050 Laptop GPU (4~GB GDDR6 VRAM), an Intel Core host processor, and Linux. Training required approximately $23$ seconds per epoch ($\sim 4.5$ minutes total to convergence per run). Runtime inference latency per single forecast window (batch size $1$) was empirically measured across 100 consecutive forward passes: $15.25 \pm 4.07$~ms on GPU (median $13.21$~ms, 95th percentile $25.07$~ms) and $6.33 \pm 0.18$~ms on CPU (median $6.31$~ms), easily satisfying real-time deployment constraints for a 5-minute CGM sampling interval. Complete code, data-processing pipelines, and configs are available at \url{https://github.com/sammyyakk/digital-twin}.
+Experiments ran on a single Linux machine with an NVIDIA GeForce RTX 2050 Laptop GPU (4~GB) and an Intel Core CPU. Training took about 23~s per epoch (about 4.5~min per run). Inference latency for one window (batch size 1, 100 forward passes) was $15.25 \pm 4.07$~ms on GPU (median 13.21~ms, 95th percentile 25.07~ms) and $6.33 \pm 0.18$~ms on CPU (median 6.31~ms), well within the 5-minute CGM sampling interval. Code, data-processing pipelines, and configurations are available at \url{https://github.com/sammyyakk/digital-twin}.
 
-Integrated gradients (IG)~\cite{ref54} uses the standardized training mean as its zero baseline as shown in (\ Eq.\eqref{eq:18}):
+\subsection{Feature Attribution Method}
+
+Integrated gradients (IG)~\cite{ref54} uses the standardized training mean as its zero baseline, as given in Eq.~\eqref{eq:18}:
 \begin{equation}
 \text{IG}_i(x) = (x_i - x_i') \int_0^1 \frac{\partial f(x' + \alpha(x - x'))}{\partial x_i}\, d\alpha.
 \label{eq:18}
@@ -479,12 +483,12 @@ Because IG shows an unresolved completeness violation, every interpretation is c
 \toprule
 Claim & Criterion fixed before test evaluation & Interpretation & Ref. \\
 \midrule
-Beats persistence & 30-minute MAE below persistence in at least 10 of 12 subjects & Requires broadly distributed improvement, not a pooled gain driven by a few subjects. & [\hyperref[ref30label]{30}-\hyperref[ref31label]{31}],~\cite{ref57} \\
-Field-competitive point accuracy & 30-minute MAE $\leq$ 13.5 mg/dL & A field-relative target, explicitly not a clinical acceptability threshold. &~\cite{ref31},~[\hyperref[ref43label]{43}-\hyperref[ref44label]{44}],~\cite{ref64} \\
-Physics improves accuracy & Physics arm beats A0 at 30 minutes and survives paired Wilcoxon testing with Holm correction & If unmet, physics is not credited with point-accuracy improvement. & [\hyperref[ref48label]{48}-\hyperref[ref49label]{49}] \\
+Beats persistence & 30-minute MAE below persistence in at least 10 of 12 subjects & Requires broadly distributed improvement, not a pooled gain driven by a few subjects. & [\hyperref[ref30label]{38}-\hyperref[ref31label]{39}],~\cite{ref57} \\
+Field-competitive point accuracy & 30-minute MAE $\leq$ 13.5 mg/dL & A field-relative target, explicitly not a clinical acceptability threshold. &~\cite{ref31},~[\hyperref[ref43label]{51}-\hyperref[ref44label]{52}],~\cite{ref64} \\
+Physics improves accuracy & Physics arm beats A0 at 30 minutes and survives paired Wilcoxon testing with Holm correction & If unmet, physics is not credited with point-accuracy improvement. & [\hyperref[ref48label]{57}-\hyperref[ref49label]{58}] \\
 $S_I$ is subject-specific & Between-subject CV $>$ 10\% & Rejects a parameter head collapsed to one population value. &~\cite{ref1,ref32} \\
 $S_I$ is stable & ICC(1) $>$ 0.5 on disjoint within-subject blocks & Rejects a window-level nuisance variable that merely absorbs prediction error. &~\cite{ref50,ref76} \\
-$S_I$ is externally consistent & Spearman $\rho < 0$ versus total daily dose, with a subject-bootstrap 95\% CI excluding zero & Evaluated separately under personalized and LOSO protocols. &~\cite{ref51},~[\hyperref[ref77label]{77}-\hyperref[ref78label]{78}] \\
+$S_I$ is externally consistent & Spearman $\rho < 0$ versus total daily dose, with a subject-bootstrap 95\% CI excluding zero & Evaluated separately under personalized and LOSO protocols. &~\cite{ref51},~[\hyperref[ref77label]{66}-\hyperref[ref78label]{67}] \\
 \bottomrule
 \end{tabular}
 \end{table*}
@@ -495,11 +499,11 @@ $S_I$ is externally consistent & Spearman $\rho < 0$ versus total daily dose, wi
 
 \subsection{Baseline Validation and Data Accounting}
 
-Persistence RMSE on the 2018 cohort is $22.52 \pm 2.56$~mg/dL at 30 minutes and $36.19 \pm 3.26$~mg/dL at 60 minutes, within $0.02$~mg/dL of both independently published no-change baselines at 30 minutes and within $0.41$~mg/dL of the published 60-minute value[\hyperref[ref56label]{56}-\hyperref[ref57label]{57}]. This close agreement validates the complete evaluation pipeline, including data parsing, five-minute grid alignment, horizon construction, persistence-target generation, RMSE computation, and subject-level aggregation Table~\ref{tab:windows}. The retained-window accounting further confirms that the reported metrics are computed on the intended 26,498 common test windows. 
+Persistence RMSE on the 2018 cohort is $22.52 \pm 2.56$~mg/dL at 30 minutes and $36.19 \pm 3.26$~mg/dL at 60 minutes, within $0.02$~mg/dL of both independently published no-change baselines at 30 minutes and within $0.41$~mg/dL of the published 60-minute value[\hyperref[ref56label]{36}-\hyperref[ref57label]{37}]. This close agreement validates the complete evaluation pipeline, including data parsing, five-minute grid alignment, horizon construction, persistence-target generation, RMSE computation, and subject-level aggregation (Table~\ref{tab:windows}). The retained-window accounting further confirms that the reported metrics are computed on the intended 26,498 common test windows. 
 
 \begin{table}[t]
 \centering
-\caption{Window accounting after integrity filtering}
+\caption{Window accounting after integrity filtering. All 12 subjects (2018 and 2020 cohorts); counts are totals across subjects, and the 26,498 test windows are shared by both evaluation protocols.}
 \label{tab:windows}
 \footnotesize
 \begin{tabular}{lr}
@@ -574,8 +578,8 @@ Table~\ref{tab:official} and Fig.~\ref{fig:summary} show that the model improves
     font=\scriptsize,
     line width=0.8pt,
     draw=black,
-    inner xsep=3pt,
-    inner ysep=2pt
+    inner xsep=1.5pt,
+    inner ysep=0.8pt
 },
   title={(a)},
   title style={at={(0.5,-0.30)}, anchor=north},
@@ -593,7 +597,7 @@ Table~\ref{tab:official} and Fig.~\ref{fig:summary} show that the model improves
 ] coordinates {
   (30,13.08) (60,21.98) (90,28.42) (120,33.23)
 };
-\addlegendentry{Digital twin}
+\addlegendentry{Hybrid Model}
 
 % ---------- (b) RMSE ----------
 \nextgroupplot[
@@ -604,8 +608,8 @@ Table~\ref{tab:official} and Fig.~\ref{fig:summary} show that the model improves
     font=\scriptsize,
     line width=0.8pt,
     draw=black,
-    inner xsep=3pt,
-    inner ysep=2pt
+    inner xsep=1.5pt,
+    inner ysep=0.8pt
 },
   title={(b)},
   title style={at={(0.5,-0.30)}, anchor=north},
@@ -623,7 +627,7 @@ Table~\ref{tab:official} and Fig.~\ref{fig:summary} show that the model improves
 ] coordinates {
   (30,18.84) (60,30.52) (90,38.60) (120,44.46)
 };
-\addlegendentry{Digital twin}
+\addlegendentry{Hybrid Model}
 
 % ---------- (c) RMSE skill ----------
 \nextgroupplot[
@@ -645,7 +649,7 @@ Table~\ref{tab:official} and Fig.~\ref{fig:summary} show that the model improves
 \end{groupplot}
 \end{tikzpicture}
 
-\caption{\small\textit{Official-protocol accuracy summary at 30/60/90/120 minutes. 2a and 2b: MAE and RMSE for persistence versus the digital twin both rise with horizon, but the gap between the two curves widens rather than closes, showing the model's advantage over naive persistence is not a short-horizon artifact. 2c: the resulting RMSE skill stays essentially flat at 19--21\% across all four horizons.}}
+\caption{\small\textit{Official-protocol accuracy summary at 30/60/90/120 minutes. (a) and (b): MAE and RMSE for persistence versus the hybrid model both rise with horizon, but the gap between the two curves widens rather than closes, showing the model's advantage over naive persistence is not a short-horizon artifact. (c): the resulting RMSE skill stays essentially flat at 19--21\% across all four horizons.}}
 \label{fig:summary}
 \end{figure*}
 
@@ -655,7 +659,7 @@ Table~\ref{tab:official} and Fig.~\ref{fig:summary} show that the model improves
 
 \begin{table*}[t]
 \centering
-\caption{Official personalized protocol: mean $\pm$ SD across subjects (($\mathrm{mg/dL}$) unless noted)}
+\caption{Official personalized protocol, all 12 subjects, final model (median of the quantile-head run): mean $\pm$ SD across subjects (mg/dL unless noted). These values come from the final-model run, which was trained separately from ablation arm A7 in Tables~\ref{tab:baselines_identical} and~\ref{tab:ablation}; this explains the small differences (e.g., 30-min MAE 13.08 here vs.\ 13.25 there).}
 \label{tab:official}
 \footnotesize
 \begin{tabular}{lrrrrrrr}
@@ -673,22 +677,24 @@ Horizon & Persistence MAE & Model MAE & Persistence RMSE & Model RMSE & RMSE ski
 \subsection{Comprehensive Baseline Comparison on Identical Windows}
 \label{sec:baselines_identical}
 
-To rigorously assess the predictive contribution of each modeling component, Table~\ref{tab:baselines_identical} compares nine distinct modeling paradigms across all 12 subjects on the identical 26,498 test windows under the official protocol:
+Table~\ref{tab:baselines_identical} compares nine models on the same 26,498 test windows from all 12 subjects under the official protocol:
 \begin{enumerate}
-    \item \textbf{Persistence:} Standard zero-order hold ($\hat{G}_{t+h} = G_t$).
-    \item \textbf{Pure Bergman Minimal Model (Population parameters):} Closed-loop forward numerical integration of the Bergman ODE starting from the basal steady-state, using literature population parameters~\cite{ref1,ref32} without neural residuals. Without real-time adaptation, the pure ODE suffers from cumulative drift ($\text{MAE} = 29.70 \pm 9.67$~mg/dL at 30 min, $58.91 \pm 15.68$~mg/dL at 120 min), illustrating the fundamental inadequacy of unassisted physiological models for free-living glucose forecasting.
-    \item \textbf{Fitted Bergman Minimal Model (Per-subject NLS/MAP):} Forward simulation with parameters fitted per subject via non-linear least squares / MAP optimization over historical calibration intervals. Subject-specific parameter tuning improves 30-minute MAE to $25.80 \pm 8.36$~mg/dL, though long-horizon accuracy remains substantially degraded ($52.48 \pm 12.63$~mg/dL at 120 min).
-    \item \textbf{Autoregressive Model AR(6):} Linear autoregression on the preceding six 5-minute CGM observations (30-minute lookback). AR(6) provides a competitive 30-minute MAE of $14.39 \pm 1.52$~mg/dL, outperforming persistence by $2.48$~mg/dL.
-    \item \textbf{Autoregressive with Exogenous Inputs ARX(6):} Incorporates the six lagged glucose terms alongside exogenous insulin bolus/basal and carbohydrate absorption features. Adding exogenous physiological inputs reduces MAE to $13.97 \pm 1.51$~mg/dL at 30 min and $24.48 \pm 2.86$~mg/dL at 60 min, demonstrating that meal and insulin signals provide measurable predictive skill even in linear frameworks.
-    \item \textbf{Standard LSTM (Non-mechanistic features):} Recurrent sequence model trained on the 26 non-mechanistic features (glucose lags, diurnal time encodings), achieving $15.41 \pm 2.16$~mg/dL at 30 min and $26.08 \pm 3.87$~mg/dL at 60 min.
-    \item \textbf{Transformer Baseline ($A0_{\text{no-mech}}$):} Transformer encoder matching the digital twin backbone, trained strictly on the 26 non-mechanistic features. Yields 30-minute MAE of $14.96 \pm 1.82$~mg/dL, outperforming LSTM by $0.45$~mg/dL.
-    \item \textbf{Transformer with Mechanistic Features (A0):} Augmenting the Transformer with all 35 features—including model-derived insulin-on-board (IOB) and carbs-on-board (COB)—reduces 30-minute MAE to $13.51 \pm 1.63$~mg/dL and 60-minute MAE to $22.82 \pm 2.88$~mg/dL. This $1.45$~mg/dL improvement over $A0_{\text{no-mech}}$ confirms the quantitative utility of compartmental state features.
-    \item \textbf{Full Digital Twin (Hybrid Residual + Parameter Head, A7):} Combining the closed-form Bergman prior, learned residual correction, and amortized parameter estimation yields $13.25 \pm 1.69$~mg/dL at 30 min and $22.29 \pm 2.93$~mg/dL at 60 min, delivering the highest overall accuracy alongside calibrated uncertainty intervals and physiological interpretability.
+    \item \textbf{Persistence:} zero-order hold, $\hat{G}_{t+h} = G_t$.
+    \item \textbf{Bergman ODE, population parameters:} forward integration from the basal steady state with literature parameters~\cite{ref1,ref32}, without neural correction.
+    \item \textbf{Bergman ODE, per-subject fit:} parameters fitted per subject by nonlinear least squares/MAP on historical calibration intervals.
+    \item \textbf{AR(6):} linear autoregression on the last six CGM values (30-min lookback).
+    \item \textbf{ARX(6):} AR(6) with added insulin and carbohydrate inputs.
+    \item \textbf{LSTM:} recurrent model on the 26 non-mechanistic features.
+    \item \textbf{Transformer, $A0_{\text{no-mech}}$:} the hybrid model's backbone trained on the same 26 features.
+    \item \textbf{Transformer, A0:} the same backbone with all 35 features, including mechanistic insulin- and carbohydrate-on-board.
+    \item \textbf{Hybrid physics-guided, A7:} A0 plus the Bergman prior, learned residual correction, and parameter head.
 \end{enumerate}
+
+Mechanistic models alone performed worst: with population parameters the ODE drifted to a 30-min MAE of 29.70~mg/dL (58.91~mg/dL at 120~min), and per-subject fitting improved this only to 25.80~mg/dL (52.48~mg/dL at 120~min). Linear models were competitive: AR(6) beat persistence by 2.48~mg/dL at 30~min, and adding insulin and meal inputs (ARX) lowered MAE to 13.97~mg/dL. Adding mechanistic features to the Transformer reduced 30-min MAE by 1.45~mg/dL (14.96 to 13.51~mg/dL), and A7 had the lowest MAE at every horizon in this comparison (13.25~mg/dL at 30~min).
 
 \begin{table*}[t]
 \centering
-\caption{Comprehensive baseline comparison across 12 subjects evaluated on identical test windows ($n=26{,}498$). Metrics reported as mean $\pm$ SD across subjects (mg/dL).}
+\caption{Comprehensive baseline comparison across 12 subjects evaluated on identical test windows ($n=26{,}498$). Metrics reported as mean $\pm$ SD across subjects (mg/dL). The A7 row is the single-seed ablation run (as in Table~\ref{tab:ablation}), not the final model in Table~\ref{tab:official}.}
 \label{tab:baselines_identical}
 \footnotesize
 \setlength{\tabcolsep}{4.2pt}
@@ -706,7 +712,7 @@ ARX(6) & 13.97 $\pm$ 1.51 & 19.61 $\pm$ 2.76 & 24.48 $\pm$ 2.86 & 32.67 $\pm$ 3.
 LSTM (non-mechanistic) & 15.41 $\pm$ 2.16 & 21.46 $\pm$ 2.83 & 26.08 $\pm$ 3.87 & 35.24 $\pm$ 4.56 & 33.59 $\pm$ 4.77 & 44.97 $\pm$ 5.76 & 38.81 $\pm$ 5.30 & 51.54 $\pm$ 6.63 \\
 Transformer ($A0_{\text{no-mech}}$) & 14.96 $\pm$ 1.82 & 21.08 $\pm$ 2.55 & 26.06 $\pm$ 3.15 & 35.56 $\pm$ 4.15 & 34.46 $\pm$ 3.81 & 46.08 $\pm$ 5.11 & 40.06 $\pm$ 4.09 & 53.03 $\pm$ 5.63 \\
 Transformer (all features, A0) & 13.51 $\pm$ 1.63 & 19.38 $\pm$ 2.41 & 22.82 $\pm$ 2.88 & 31.61 $\pm$ 3.71 & 29.74 $\pm$ 3.74 & 40.32 $\pm$ 4.71 & 34.93 $\pm$ 4.20 & 46.70 $\pm$ 5.24 \\
-\textbf{Digital Twin (Hybrid, A7)} & \textbf{13.25 $\pm$ 1.69} & \textbf{19.16 $\pm$ 2.52} & \textbf{22.29 $\pm$ 2.93} & \textbf{31.13 $\pm$ 3.87} & \textbf{28.77 $\pm$ 3.75} & \textbf{39.46 $\pm$ 4.88} & \textbf{33.38 $\pm$ 4.21} & \textbf{45.14 $\pm$ 5.43} \\
+\textbf{Hybrid physics-guided (A7)} & \textbf{13.25 $\pm$ 1.69} & \textbf{19.16 $\pm$ 2.52} & \textbf{22.29 $\pm$ 2.93} & \textbf{31.13 $\pm$ 3.87} & \textbf{28.77 $\pm$ 3.75} & \textbf{39.46 $\pm$ 4.88} & \textbf{33.38 $\pm$ 4.21} & \textbf{45.14 $\pm$ 5.43} \\
 \bottomrule
 \end{tabular}
 \end{table*}
@@ -779,20 +785,21 @@ At 30 minutes, LOSO remains better than persistence in all 12 subjects by MAE (1
 
 
 \subsection{Physics Ablations}
+In the pre-specified single-seed ablation, no physics configuration significantly outperformed the no-physics A0 baseline after Holm correction (Table~\ref{tab:ablation}; Fig.~\ref{fig:ablationfig}). A7 was nominally best and improved 9 of 12 subjects, but its corrected $p = 0.105$, so the pre-specified criterion was not met. A subsequent 5-seed replication of A0 and A7 (Section~\ref{sec:multiseed_replication}) found that, on seed-averaged per-subject errors, A7 has lower MAE at every horizon, by 0.51~mg/dL at 30~min and 2.38~mg/dL at 120~min (Holm $p = 0.002$ at each horizon). Per-patient parameters remain accuracy-neutral: A3 and population-fixed A4 differ by 0.07--0.23~mg/dL at 30/60~min, widening to 0.76~mg/dL at 120~min. In contrast with earlier physiology-informed OhioT1DM studies that primarily reported forecast accuracy~\cite{ref58,ref59}, this ablation separates parameter estimation from predictive gain.
 
-No physics configuration significantly outperforms the no-physics A0 baseline after Holm correction (Table~\ref{tab:ablation}; Fig.~\ref{fig:ablationfig}). A7 is nominally best and improves 9 of 12 subjects, but its corrected $p = 0.105$. Per-patient parameters are accuracy-neutral: A3 and population-fixed A4 differ by 0.07–0.23 mg/dL at 30/60 min, widening to 0.76 mg/dL at 120 min. In contrast with earlier physiology-informed OhioT1DM studies that primarily reported forecast accuracy~[\hyperref[ref58label]{58}-\hyperref[ref59label]{59}], this ablation separates parameter estimation from predictive gain. The defensible value of physics is not superior point accuracy; it is access to a stable physiological parameter and informative mechanistic states without a material accuracy penalty.
+Beyond this modest accuracy gain, the value of physics lies in access to a stable physiological parameter and informative mechanistic states.
 
-\textit{Status of Arms A5 and A6:} The ablation protocol initially designed arms A0 through A7, but arms A5 and A6 were dropped for verified technical reasons rather than omitted post hoc:
+\textit{Arms A5 and A6.} Two planned arms were dropped for technical reasons:
 \begin{itemize}
-    \item \textbf{Ablation A5 (Simulation pretraining):} Intended to evaluate transfer learning from UVA/Padova simulator traces. A pipeline audit discovered a defect in the legacy meal generator: meal times were re-sampled inside the inner per-step integration loop, resulting in an unphysiological average of $\sim 0.6$ meals per day rather than $3$ meals per day. Because this corrupted the synthetic postprandial training distribution, A5 was formally blocked to avoid training on invalid synthetic data.
-    \item \textbf{Ablation A6 (Legacy hand-rolled kernels):} Formulated to quantify the benefit of deriving IOB/COB from the mass-conserving Bergman ODE versus legacy heuristic kernels (which featured an unnormalized exponential carbohydrate decay and a time-reversed insulin action curve). Rather than maintaining a defective heuristic pipeline, the value of the principled compartmental states is quantified directly via feature attribution (Section~\ref{sec:attribution}), where they carry $27.1\%$ of total model attribution.
+    \item \textbf{A5 (simulation pretraining)} would have pretrained on UVA/Padova simulator traces, but the legacy meal generator re-sampled meal times inside the integration loop, producing about 0.6 instead of 3 meals per day; A5 was blocked to avoid training on invalid synthetic data.
+    \item \textbf{A6 (legacy heuristic kernels)} would have compared Bergman-derived IOB/COB with legacy kernels that had an unnormalized carbohydrate decay and a time-reversed insulin curve. Instead, the value of the compartmental states is quantified by feature attribution (Section~\ref{sec:attribution}), where they carry 27.1\% of total attribution.
 \end{itemize}
 
 
 \begin{table*}[t]
 \centering
 
-\caption{Ablation matrix. mae at all horizons; clarke a and hypoglycemia metrics at 30 min. hypo bias is mean error for glucose below 70 ($\mathrm{mg/dL}$)}
+\caption{Ablation matrix: official protocol, all 12 subjects, one training run per arm (seed 42). MAE at all horizons; Clarke A and hypoglycemia metrics at 30 min; hypo bias is the mean error for glucose below 70 mg/dL. Hypoglycemia values differ from Table~\ref{tab:hypo_event}, whose A0 and A7 rows come from separately trained models with quantile heads (Section~\ref{sec:quantile_a0_a7}).}
 \label{tab:ablation}
 \footnotesize
 \setlength{\tabcolsep}{4.5pt}
@@ -801,7 +808,7 @@ No physics configuration significantly outperforms the no-physics A0 baseline af
 Arm & Configuration & MAE30 & MAE60 & MAE90 & MAE120 & Clarke A & Hypo sens. & Hypo bias & Gives $S_I$ \\
 \midrule
 A0 & Transformer, no physics & 13.51 & 22.82 & 29.74 & 34.93 & 89.4\% & 0.637 & +7.29 & no \\
-A1 & Penalty PINN, fixed $\lambda=0.1$ & 13.68 & 23.47 & 30.93 & 36.22 & 88.9\% & 0.502 & +11.29 & no \\
+A1 & Physics penalty, fixed $\lambda=0.1$ & 13.68 & 23.47 & 30.93 & 36.22 & 88.9\% & 0.502 & +11.29 & no \\
 A2 & Adaptive penalty, per patient & 13.58 & 23.35 & 30.59 & 35.74 & 89.0\% & 0.499 & +11.03 & yes \\
 A3 & Hybrid prior, curriculum & 13.65 & 23.12 & 30.02 & 34.83 & 89.0\% & 0.485 & +10.95 & yes \\
 A4 & Hybrid, fixed population parameters & 13.58 & 23.35 & 30.57 & 35.59 & 89.1\% & 0.517 & +10.18 & no \\
@@ -860,17 +867,17 @@ A7 & Hybrid, full physics from epoch 1 & \textbf{13.25} & \textbf{22.29} & \text
 \subsubsection{Multi-Seed Replication and Statistical Significance}
 \label{sec:multiseed_replication}
 
-To address the single-seed limitation and rigorously evaluate reproducibility, we executed a 5-seed replication study for both the purely neural Transformer baseline (A0) and the full digital twin (A7) using seeds $\{42, 101, 202, 303, 404\}$. For each seed, models were trained from scratch to early stopping under the official protocol. We evaluated: (1) the mean and standard deviation of MAE and RMSE across seeds, and (2) paired two-sided Wilcoxon signed-rank tests computed on seed-averaged per-subject errors with Holm--Bonferroni multiplicity correction (Table~\ref{tab:multiseed}).
+A0 and A7 were each retrained from scratch with five seeds $\{42, 101, 202, 303, 404\}$ under the official protocol. We report the mean and SD of MAE and RMSE across seeds, and paired two-sided Wilcoxon signed-rank tests on seed-averaged per-subject errors with Holm--Bonferroni correction (Table~\ref{tab:multiseed}).
 
 \begin{table*}[t]
 \centering
-\caption{Multi-seed replication (5 seeds: 42, 101, 202, 303, 404) comparing A0 (no physics) and A7 (full digital twin), with paired Wilcoxon signed-rank tests on seed-averaged per-subject errors.}
+\caption{Multi-seed replication (5 seeds: 42, 101, 202, 303, 404) comparing A0 (no physics) and A7 (hybrid physics-guided), with paired Wilcoxon signed-rank tests on seed-averaged per-subject errors. Values are means over the five seeds and therefore differ from the single-seed (seed 42) values in Tables~\ref{tab:baselines_identical} and~\ref{tab:ablation}.}
 \label{tab:multiseed}
 \footnotesize
 \setlength{\tabcolsep}{4.5pt}
 \begin{tabular}{lrrrrrrrr}
 \toprule
-& \multicolumn{2}{c}{A0 (Transformer, no physics)} & \multicolumn{2}{c}{A7 (Full Digital Twin)} & \multicolumn{4}{c}{Paired Wilcoxon Test (Seed-Averaged)} \\
+& \multicolumn{2}{c}{A0 (Transformer, no physics)} & \multicolumn{2}{c}{A7 (Hybrid physics-guided)} & \multicolumn{4}{c}{Paired Wilcoxon Test (Seed-Averaged)} \\
 \cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-9}
 Horizon & MAE ($\text{mean}\pm\text{SD}$) & RMSE ($\text{mean}\pm\text{SD}$) & MAE ($\text{mean}\pm\text{SD}$) & RMSE ($\text{mean}\pm\text{SD}$) & MAE Diff & $p_{\text{raw}}$ & $p_{\text{Holm}}$ & Significant? \\
 \midrule
@@ -882,17 +889,13 @@ Horizon & MAE ($\text{mean}\pm\text{SD}$) & RMSE ($\text{mean}\pm\text{SD}$) & M
 \end{tabular}
 \end{table*}
 
-The multi-seed replication establishes two key insights:
-\begin{enumerate}
-    \item \textbf{Physics Stabilizes Training Variance:} The standard deviation of test error across random initialization seeds is consistently cut in half by the physics prior. At 30 minutes, seed SD is $0.11$~mg/dL for A7 versus $0.25$~mg/dL for A0. At 120 minutes, seed SD is $0.64$~mg/dL for A7 versus $1.07$~mg/dL for A0. Enforcing the mass-conserving Bergman ODE acts as an effective regularizer that prevents the network from converging into disparate, suboptimal local minima.
-    \item \textbf{Statistical Superiority on Seed-Averaged Errors:} When per-subject errors are averaged across the five seeds to eliminate initialization noise, A7 significantly outperforms A0 at every prediction horizon ($p_{\text{Holm}} = 0.00195$ for both MAE and RMSE across all horizons 30--120 min). The magnitude of the predictive advantage increases monotonically with the forecast horizon, from $-0.51$~mg/dL at 30 minutes to $-2.38$~mg/dL at 120 minutes.
-\end{enumerate}
+A7 significantly outperformed A0 at every horizon ($p_{\text{Holm}} = 0.00195$ for both MAE and RMSE), with an MAE advantage of 0.51~mg/dL at 30~min and 2.38~mg/dL at 120~min. Physics also reduced variability across seeds: the seed SD was 0.11 vs.\ 0.25~mg/dL at 30~min and 0.64 vs.\ 1.07~mg/dL at 120~min for A7 vs.\ A0.
 
 \subsection{Clinical Accuracy and Hypoglycemia Detection}
 
 Clinical agreement remains high across horizons: Clarke A+B decreases from 99.0\% at 30 minutes to 94.3\% at 120 minutes (Fig.~\ref{fig:clarke}). The Parkes error grid, pooled across test windows, shows the same pattern: zone A+B falls from 99.8\% at 30 minutes to 95.9\% at 120 minutes, and zone E is 0\% at every horizon.
 
-Because classical Clarke and Parkes grids were developed for static point-in-time sensor measurements rather than dynamic multi-horizon forecasting, we additionally implemented and evaluated Prediction Error Grid Analysis (PRED-EGA; Sivananthan et al.~\cite{ref53}). PRED-EGA stratifies forecasts into three distinct physiological states—hypoglycemia ($\le 70$~mg/dL), euglycemia ($70$--$180$~mg/dL), and hyperglycemia ($> 180$~mg/dL)—and categorizes predictions into Accurate, Benign Errors, and Erroneous predictions based on clinical risk (Table~\ref{tab:predega}). Across all 12 subjects, clinically acceptable predictions (Accurate + Benign) exceed 99.4\% across all horizons from 30 to 120 minutes, with Erroneous predictions remaining strictly under 0.6\% even at 120 minutes. Crucially, in the severe hyperglycemia range, Accurate detection is $96.2\%$ at 30 minutes and $86.1\%$ at 60 minutes, while in the hypoglycemia range Erroneous classifications remain $0.00\%$ at 30 minutes ($0.13\%$ at 60 min).
+Because Clarke and Parkes grids were designed for point-in-time sensor measurements rather than forecasts, we also applied Prediction Error Grid Analysis (PRED-EGA)~\cite{ref53}, which classifies predictions as Accurate, Benign, or Erroneous separately in hypoglycemia ($\le 70$~mg/dL), euglycemia (70--180~mg/dL), and hyperglycemia ($> 180$~mg/dL) (Table~\ref{tab:predega}). Clinically acceptable predictions (Accurate + Benign) exceeded 99.4\% at every horizon, and Erroneous predictions stayed below 0.6\% even at 120~min. In hyperglycemia, 96.2\% of predictions were Accurate at 30~min and 86.1\% at 60~min; in hypoglycemia, Erroneous predictions were 0.00\% at 30~min and 0.13\% at 60~min.
 
 \begin{table}[t]
 \centering
@@ -918,7 +921,7 @@ Hyperglycemia Erroneous (\%) & $0.00 \pm 0.00$ & $0.00 \pm 0.00$ & $0.00 \pm 0.0
 }
 \end{table}
 
-However, as observed with Clarke zone A, standard point-forecast metrics reward predictions close to the center and can underestimate acute excursions. Thus, 89.8\% of predictions in Clarke zone A and 99.96\% in PRED-EGA clinically acceptable at 30 minutes can still coexist with the median point forecast missing 43\% of hypoglycemic events.
+However, as observed with Clarke zone A, standard point-forecast metrics reward predictions close to the center and can underestimate acute excursions. Thus, 89.8\% of predictions in Clarke zone A and 99.96\% in PRED-EGA clinically acceptable at 30 minutes can still coexist with the median point forecast missing 45\% of hypoglycemic readings (pointwise sensitivity 0.551; Table~\ref{tab:hypo_event}).
 
 \pgfplotstableread[col sep=comma]{data/summary_model.csv}\summarytable
 \pgfplotstablegetelem{0}{clarke_zone_A_pct_mean}\of\summarytable \global\let\ClAa=\pgfplotsretval
@@ -984,25 +987,22 @@ However, as observed with Clarke zone A, standard point-forecast metrics reward 
 
 \subsection{Hypoglycemia Detection and Predictive Distribution Calibration}
 
-Because point forecasts trained on mean-squared or Huber objectives regress toward the mean, they systematically underestimate risk during hypoglycemic excursions. To evaluate this rigorously and address clinical reviewer concerns, we evaluated hypoglycemia performance under three complementary paradigms: (1) consensus event-level detection, (2) head-to-head comparison between baseline A0 and physics-hybrid A7 with quantile heads, (3) validation-split threshold selection with sensitivity--precision operating curves, and (4) multi-horizon calibration and sharpness.
+Point forecasts trained with squared or Huber losses regress toward the mean and underestimate hypoglycemic excursions. We therefore evaluated hypoglycemia detection in four ways: consensus event-level detection, a head-to-head comparison of A0 and A7 with quantile heads, validation-based threshold selection, and multi-horizon calibration.
 
 \subsubsection{Consensus Event-Based Hypoglycemia Evaluation}
-Per international clinical consensus~\cite{ref52}, an acute hypoglycemic episode is defined as $\ge 15$ continuous minutes ($\ge 3$ consecutive 5-minute CGM readings) with glucose $< 70$~mg/dL. Across the 92.0 patient-days of continuous test monitoring in OhioT1DM, there are 56 consensus hypoglycemic episodes. Table~\ref{tab:hypo_event} reports the event-level sensitivity, numerical specificity, false alarm rate per patient-day, and median detection lead time.
-
-The point forecast (median) detects only 11 of 56 events (event sensitivity $19.6\%$, specificity $99.4\%$, $0.62$ false alarms/day, median lead time 15~min). By contrast, alarming on the lower predictive quantile ($\hat{G}_{0.10} < 70$~mg/dL) dramatically increases event sensitivity to $67.9\%$ (38 of 56 events detected before onset; specificity $95.4\%$, $2.21$ false alarms/day, median lead time 15~min). Extending the quantile alarm across a multi-horizon window (monitoring $\min(\hat{G}_{0.10}(30), \hat{G}_{0.10}(60)) < 70$~mg/dL) achieves $82.1\%$ event sensitivity (46 of 56 events detected; specificity $92.1\%$, $3.46$ false alarms/day) with an increased median detection lead time of $25.0$ minutes.
+Following international consensus~\cite{ref52}, a hypoglycemic episode was defined as at least 15 continuous minutes (three consecutive 5-minute readings) below 70~mg/dL; the test set contains 56 such episodes over 92.0 patient-days (Table~\ref{tab:hypo_event}). The median forecast detected 11 of 56 events (sensitivity 19.6\%, specificity 99.4\%, 0.62 false alarms/day, median lead time 15~min). An alarm on the lower quantile ($\hat{G}_{0.10} < 70$~mg/dL) detected 38 of 56 before onset (67.9\%; specificity 95.4\%, 2.21 false alarms/day, median lead time 15~min). Monitoring $\min(\hat{G}_{0.10}(30), \hat{G}_{0.10}(60)) < 70$~mg/dL detected 46 of 56 (82.1\%; specificity 92.1\%, 3.46 false alarms/day) and extended the median lead time to 25.0~min.
 
 \subsubsection{Quantile Alarm for Baseline A0 vs.\ Physics A7}
-To determine whether physiological constraints worsen hypoglycemia performance when both models possess quantile heads, we trained ablation arm A0 (no physics) with the identical non-crossing quantile head and compared it directly to A7 (Table~\ref{tab:hypo_event}).
-
-For the point forecast, A7 achieves higher sensitivity than A0 ($0.551$ vs.\ $0.413$ pointwise, and $19.6\%$ vs.\ $10.7\%$ at the event level) at essentially identical specificity ($99.3\%$ vs.\ $99.4\%$). With the lower quantile alarm ($q = 0.10$), A7 again outperforms A0 in both pointwise sensitivity ($0.918$ vs.\ $0.861$) and event-level sensitivity ($67.9\%$ vs.\ $58.9\%$) with comparable specificity ($95.4\%$ vs.\ $95.9\%$). This definitively resolves the reviewer concern: physics does not degrade hypoglycemia detection; rather, the hybrid prior provides a more structured lower tail that enhances sensitivity for acute drops.
+\label{sec:quantile_a0_a7}
+To test whether physics worsens hypoglycemia detection when both models have quantile heads, A0 was retrained with the same non-crossing quantile head and compared with A7 (Table~\ref{tab:hypo_event}). With the median forecast, A7 had higher sensitivity than A0 (pointwise 0.551 vs.\ 0.413; event-level 19.6\% vs.\ 10.7\%) at similar specificity (99.3\% vs.\ 99.4\%). With the $q = 0.10$ alarm, A7 was again more sensitive (pointwise 0.918 vs.\ 0.861; event-level 67.9\% vs.\ 58.9\%) at comparable specificity (95.4\% vs.\ 95.9\%). In this comparison, physics does not degrade hypoglycemia detection.
 
 \subsubsection{Validation Threshold Selection and Operating Curves}
 \label{sec:validation_threshold_selection}
-To eliminate test-set reuse in threshold tuning, alarm threshold selection was conducted strictly on the validation split by optimizing the clinical $F_2$ score (which weights sensitivity twice as heavily as precision). The validation-optimal threshold was $T^* = 84.0$~mg/dL ($F_2 = 0.771$). Evaluated and reported once on the held-out test split, this frozen threshold yields $0.943$ sensitivity, $0.908$ specificity, $0.451$ precision, and 2,261 false positives, compared to $0.918$ sensitivity, $0.951$ specificity, and $0.347$ precision at the standard clinical $70.0$~mg/dL threshold. Continuous sensitivity--precision curves across $q \in \{0.05, 0.10, 0.20\}$ (recorded in \texttt{data/sensitivity\_precision\_curves.csv}) confirm that clinicians can adjust the operating threshold along a continuous safety trade-off.
+To avoid test-set reuse, the alarm threshold was chosen on the validation split by maximizing the $F_2$ score, which weights sensitivity twice as heavily as precision. The selected threshold, $T^* = 84.0$~mg/dL ($F_2 = 0.771$), evaluated once on the test split, gave sensitivity 0.943, specificity 0.908, precision 0.451, and 2,261 false positives, compared with 0.918, 0.951, and 0.347 at the standard 70.0~mg/dL threshold. Sensitivity--precision curves for $q \in \{0.05, 0.10, 0.20\}$ (\texttt{data/sensitivity\_precision\_curves.csv}) show that the operating point can be adjusted along a continuous trade-off.
 
 \begin{table*}[t]
 \centering
-\caption{Consensus event-level and pointwise hypoglycemia detection at 30 minutes across models and alarm heads (92.0 patient-days, 56 episodes)}
+\caption{Consensus event-level and pointwise hypoglycemia detection at 30 minutes across models and alarm heads (92.0 patient-days, 56 episodes). A0 was retrained with the same quantile head as A7 (Section~\ref{sec:quantile_a0_a7}), so its values differ from the single-seed ablation run in Table~\ref{tab:ablation}.}
 \label{tab:hypo_event}
 \footnotesize
 \begin{tabular}{llrrrrrrr}
@@ -1020,7 +1020,7 @@ A7 (Physics hybrid) & Multi-horizon $q=0.10$ & -- & -- & -- & \textbf{82.1\%} & 
 \end{table*}
 
 \subsubsection{Calibration and Uncertainty Quantification}
-Table~\ref{tab:calibration} summarizes the multi-horizon calibration, sharpness, and scoring rules for the predicted distribution. The nominal 80\% central prediction interval ($[q_{0.10}, q_{0.90}]$) demonstrates empirical coverage of $79.4\%$ at 30~min, $78.5\%$ at 60~min, $77.2\%$ at 90~min, and $76.9\%$ at 120~min. The lower $q=0.10$ quantile covers $9.47\%$ of observations at 30~min and $9.96\%$ at 120~min, closely matching the nominal $10.0\%$ rate. Conditional on safety-critical glucose $< 80$~mg/dL, the interval covers $76.4\%$ of observations, while the lower quantile covers $22.4\%$, reflecting the necessary asymmetric widening of the lower bound during hypoglycemic drops. Mean interval width widens monotonically from $39.9$~mg/dL at 30~min to $96.7$~mg/dL at 120~min, reflecting increasing predictive uncertainty over time. Continuous Ranked Probability Score (CRPS) scales gracefully from $9.74$~mg/dL at 30~min to $24.32$~mg/dL at 120~min.
+Table~\ref{tab:calibration} reports calibration, sharpness, and scoring rules. Empirical coverage of the nominal 80\% interval ($[q_{0.10}, q_{0.90}]$) was 79.4\%, 78.5\%, 77.2\%, and 76.9\% at 30, 60, 90, and 120~min, and the lower quantile covered 9.47\% of observations at 30~min and 9.96\% at 120~min, close to the nominal 10.0\%. For glucose below 80~mg/dL, the interval covered 76.4\% of observations and the lower quantile 22.4\%. Between 30 and 120~min, mean interval width grew from 39.9 to 96.7~mg/dL and CRPS from 9.74 to 24.32~mg/dL.
 
 \begin{table*}[t]
 \centering
@@ -1124,7 +1124,7 @@ Point forecasts also increasingly compress glucose excursions at longer horizons
 \end{tikzpicture}\\[2pt]
 {\normalsize\bfseries (c)}
 \end{minipage}
-\caption{\small\textit{Excursion compression with horizon (30/60/90/120 minutes). 7a: actual time-in-range (TIR) stays flat near 62\% while predicted TIR climbs toward 74\%, an increasing overestimate. 7b: actual time-below-range (TBR) stays flat near 2.8\% while predicted TBR falls toward 0.6\%, an increasing underestimate of hypoglycemic exposure. 7c: the predicted-to-actual coefficient-of-variation ratio declines from about 0.97 to 0.80. All three panels show the same mechanism: as the horizon lengthens, the point forecast increasingly regresses toward the mean and loses the variance of the true glucose trace.}}
+\caption{\small\textit{Excursion compression with horizon (30/60/90/120 minutes). a: actual time-in-range (TIR) stays flat near 62\% while predicted TIR climbs toward 74\%, an increasing overestimate. b: actual time-below-range (TBR) stays flat near 2.8\% while predicted TBR falls toward 0.6\%, an increasing underestimate of hypoglycemic exposure. c: the predicted-to-actual coefficient-of-variation ratio declines from about 0.97 to 0.80. All three panels show the same mechanism: as the horizon lengthens, the point forecast increasingly regresses toward the mean and loses the variance of the true glucose trace.}}
 \label{fig:excursion}
 \end{figure*}
 
@@ -1156,14 +1156,14 @@ $\rho$ vs.\ total daily dose & $<$0, CI excludes 0 & $-0.839$ & $-0.357$ \\
 \end{table}
 
 \subsubsection{Addressing Potential Circularity and Confounding}
-A critical methodological question is whether the measured stability and dose correlation of $S_I$ could be circular—either enforced artificially by the temporal consistency loss ($\lambda_{tc} \mathcal{L}_{\text{temporal}}$), confounded by ambient glucose levels, or unaligned with classic physiological minimal-model estimation. We conducted four targeted analyses to resolve these concerns (Table~\ref{tab:si_circularity}):
+We tested whether the stability and dose correlation of $S_I$ could be artifacts of the temporal-consistency loss or of ambient glucose, and whether $S_I$ agrees with classical minimal-model estimation (Table~\ref{tab:si_circularity}):
 
 \begin{enumerate}
-    \item \textbf{Ablation of Temporal Consistency Loss ($\lambda_{tc} = 0.0$):} To test whether within-subject stability ($\text{ICC} > 0.5$) is merely an artifact of the penalty enforcing low within-subject variance, we trained an ablation model with $\lambda_{tc} = 0.0$ (`abl-A7-notc`). Even with no temporal consistency penalty whatsoever, the learned $S_I$ preserves high test--retest stability with $\text{ICC}(1) = 0.645$ (well above the $>0.5$ threshold), exhibits genuine between-subject diversity ($\text{CV} = 22.2\% > 10\%$), keeps 100\% of estimates within the Ward IDDM physiological bounds, and maintains a strong, statistically significant rank correlation with total daily insulin dose ($\rho = -0.804$, $p = 0.0016$, 95\% CI [$-0.955, -0.451$]). This confirms that temporal stability is an intrinsic property learned by the amortized encoder from patient historical trajectories, not an optimization artifact forced by $\lambda_{tc}$.
-    \item \textbf{Partial Correlation Controlling for Mean Glucose:} To test whether $S_I$ is merely acting as a surrogate for overall glycemic control or ambient glucose levels, we evaluated the partial correlation between $S_I$ and total daily dose (TDD) while controlling for each subject's mean CGM glucose ($\bar{G}$). Controlling for test-interval mean glucose, the partial rank correlation remains virtually unchanged at $r = -0.838$ ($p = 0.0013$) and the partial Pearson correlation is $r = -0.886$ ($p = 0.0003$). Controlling for whole-study mean glucose similarly yields partial rank $r = -0.843$ ($p = 0.0011$) and Pearson $r = -0.875$ ($p = 0.0004$). Ambient glucose does not account for the $S_I$--TDD relationship.
-    \item \textbf{Independent Minimal-Model Fitting (NLS/MAP):} We independently fitted the standard Bergman minimal model to each subject's historical CGM, insulin, and meal records via classical non-linear least squares (NLS) and maximum a posteriori (MAP) estimation, yielding a purely physics-derived baseline sensitivity $S_{I,\text{Bergman}}$. The amortized $S_I$ inferred by the neural parameter head exhibits strong quantitative agreement with this classical non-linear regression: Spearman $\rho = 0.790$ ($p = 0.0022$) and Pearson $r = 0.831$ ($p = 0.0008$). The neural digital twin therefore recovers the sensitivity landscape of classic physiological parameter estimation in real-time inference without iterative numerical fitting.
-    \item \textbf{Secondary Check with Insulin-to-Carbohydrate Ratio (ICR):} For the six 2018 subjects with documented clinical ICR, the correlation between $S_I$ and ICR was Spearman $\rho = +0.371$ ($p = 0.469$) and Pearson $r = +0.079$ ($p = 0.881$). With $n=6$ this secondary check is statistically underpowered, but reported transparently.
-    \item \textbf{Learned Prior Trust Gate $g$:} The hybrid residual architecture gates the uncorrected Bergman ODE prior by $g = \sigma(\text{prior\_logit}) \in (0, 1)$, initialized at $g_0 = \sigma(-2.2) \approx 0.10$ ($10\%$). At convergence, $g$ settles at $0.152$ ($15.2\%$) in the point forecaster (A7) and $0.128$ ($12.8\%$) in the quantile forecaster. This reveals that the model appropriately allocates $\sim 85\text{--}87\%$ of its forecast capacity to the neural residual corrections while retaining a stable $\sim 13\text{--}15\%$ anchor on the mass-conserving ODE prior.
+    \item \textbf{No temporal-consistency loss ($\lambda_{tc} = 0$):} Retrained without the penalty (\texttt{abl-A7-notc}), $S_I$ still passed all checks: ICC(1) = 0.645, CV = 22.2\%, all estimates within the Ward IDDM bounds, and $\rho = -0.804$ with total daily dose ($p = 0.0016$, 95\% CI [$-0.955, -0.451$]). Stability is therefore not produced solely by the penalty.
+    \item \textbf{Partial correlation controlling for mean glucose:} Controlling for test-interval mean glucose, the $S_I$--TDD partial correlation was $r = -0.838$ (rank, $p = 0.0013$) and $r = -0.886$ (Pearson, $p = 0.0003$); controlling for whole-study mean glucose gave $r = -0.843$ ($p = 0.0011$) and $r = -0.875$ ($p = 0.0004$). Ambient glucose does not explain the relationship.
+    \item \textbf{Independent minimal-model fit:} $S_I$ from the parameter head agreed with per-subject Bergman estimates obtained by nonlinear least squares/MAP (Spearman $\rho = 0.790$, $p = 0.0022$; Pearson $r = 0.831$, $p = 0.0008$), without iterative fitting at inference.
+    \item \textbf{Insulin-to-carbohydrate ratio:} For the six 2018 subjects with clinical ICR, the correlation with $S_I$ was Spearman $\rho = +0.371$ ($p = 0.469$) and Pearson $r = +0.079$ ($p = 0.881$); with $n = 6$, this check is underpowered.
+    \item \textbf{Learned trust gate $g$:} The gate on the Bergman prior, initialized at $g_0 \approx 0.10$, converged to 0.152 in the point forecaster (A7) and 0.128 in the quantile forecaster.
 \end{enumerate}
 
 \begin{table}[t]
@@ -1180,23 +1180,23 @@ Analysis / Validation Check & Value & Interpretation / Threshold \\
 Between-subject CV & 22.2\% & Non-degenerate ($> 10\%$) \\
 Test--retest reliability ICC(1) & 0.645 & Stable without penalty ($> 0.5$) \\
 Spearman $\rho$ vs.\ TDD & $-0.804$ & Significant ($p=0.0016$, 95\% CI [$-0.96, -0.45$]) \\
-Ward IDDM range adherence & 100\% & Fully physiological \\
+Ward IDDM range adherence & 100\% & Within bounds (partly imposed by design) \\
 \midrule
 \multicolumn{3}{l}{\textit{Confounding by Ambient Glucose:}} \\
 Unadjusted $\rho(S_I, \text{TDD})$ & $-0.839$ & Baseline ($p = 0.0006$) \\
-Partial rank $r(S_I, \text{TDD} \mid \bar{G}_{\text{test}})$ & $-0.838$ & Unconfounded ($p = 0.0013$) \\
-Partial Pearson $r(S_I, \text{TDD} \mid \bar{G}_{\text{test}})$ & $-0.886$ & Unconfounded ($p = 0.0003$) \\
-Partial rank $r(S_I, \text{TDD} \mid \bar{G}_{\text{all}})$ & $-0.843$ & Unconfounded ($p = 0.0011$) \\
+Partial rank $r(S_I, \text{TDD} \mid \bar{G}_{\text{test}})$ & $-0.838$ & After adjustment ($p = 0.0013$) \\
+Partial Pearson $r(S_I, \text{TDD} \mid \bar{G}_{\text{test}})$ & $-0.886$ & After adjustment ($p = 0.0003$) \\
+Partial rank $r(S_I, \text{TDD} \mid \bar{G}_{\text{all}})$ & $-0.843$ & After adjustment ($p = 0.0011$) \\
 \midrule
 \multicolumn{3}{l}{\textit{External Validation against Classic Minimal Model:}} \\
-Agreement with NLS/MAP Bergman (Spearman $\rho$) & $+0.790$ & Strong concordance ($p = 0.0022$) \\
-Agreement with NLS/MAP Bergman (Pearson $r$) & $+0.831$ & Strong concordance ($p = 0.0008$) \\
+Agreement with NLS/MAP Bergman (Spearman $\rho$) & $+0.790$ & Agreement ($p = 0.0022$) \\
+Agreement with NLS/MAP Bergman (Pearson $r$) & $+0.831$ & Agreement ($p = 0.0008$) \\
 Agreement with clinical ICR ($n=6$, exploratory) & $+0.371$ & Underpowered ($p = 0.469$) \\
 \midrule
 \multicolumn{3}{l}{\textit{Mechanistic Prior Trust Gate:}} \\
-Initialized gate $g_0 = \sigma(-2.2)$ & 9.98\% & Safe near-persistence start \\
-Converged gate $g$ (Point Forecaster, A7) & 15.2\% & 84.8\% residual weighting \\
-Converged gate $g$ (Quantile Forecaster, A7) & 12.8\% & 87.2\% residual weighting \\
+Initialized gate $g_0 = \sigma(-2.2)$ & 9.98\% & Initialization \\
+Converged gate $g$ (Point Forecaster, A7) & 15.2\% & Converged value \\
+Converged gate $g$ (Quantile Forecaster, A7) & 12.8\% & Converged value \\
 \bottomrule
 \end{tabular}%
 }
@@ -1207,7 +1207,7 @@ Body weight is not identifiable because all OhioT1DM files use the same de-ident
 \subsection{Feature Attribution}
 \label{sec:attribution}
 
-IG and permutation importance agree with Spearman $\rho = 0.731$ ($p = 6.05 \times 10^{-7}$, $n=35$) and share three of their top five features. Both rank five-minute glucose rate of change first by a wide margin. Permuting it raises MAE by 3.11 mg/dL, over seven times the next feature. The group-level IG result in Fig.~\ref{fig:attribution} assigns 42.7\% to glucose-derived features and 27.1\% to mechanistic states, showing that physiology-derived inputs are informative even though the physics loss does not significantly improve point accuracy.
+IG and permutation importance agree with Spearman $\rho = 0.731$ ($p = 6.05 \times 10^{-7}$, $n=35$) and share three of their top five features. Both rank five-minute glucose rate of change first by a wide margin. Permuting it raises MAE by 3.11 mg/dL, over seven times the next feature. The group-level IG result in Fig.~\ref{fig:attribution} assigns 42.7\% to glucose-derived features and 27.1\% to mechanistic states, showing that physiology-derived inputs are informative in their own right.
 
 Attribution concentrates in the most recent input positions, supporting attention pooling. The IG completeness discrepancy has median relative magnitude 3.2\% and $p_{95}$ 70\%; it does not shrink with more integration steps and remains unresolved. Conclusions are therefore restricted to findings corroborated by permutation importance.
 
@@ -1280,14 +1280,14 @@ Attribution concentrates in the most recent input positions, supporting attentio
 \end{tikzpicture}\\[2pt]
 {\normalsize\bfseries (b)}
 \end{minipage}
-\caption{\small\textit{Feature attribution at 30 min using integrated gradients (8a) and permutation importance (8b). Glucose-derived features dominate IG attribution (42.7\%), while \textnormal{\texttt{roc\_5}} is the strongest permuted feature ($\sim$3.1~mg/dL MAE increase). Both methods identify glucose dynamics as the leading predictors.}}
+\caption{\small\textit{Feature attribution at 30 min using integrated gradients (a) and permutation importance (b). Glucose-derived features dominate IG attribution (42.7\%), while \textnormal{\texttt{roc\_5}} is the strongest permuted feature ($\sim$3.1~mg/dL MAE increase). Both methods identify glucose dynamics as the leading predictors.}}
 \label{fig:attribution}
 \end{figure*}
 
 
 \subsection{Comparison With Published Work}
 
-At 30 minutes, the current work is mid-field relative to the 2020 challenge literature~[\hyperref[ref60label]{60}-\hyperref[ref64label]{64}] (Table~\ref{tab:published}): on the matched 2020 cohort (subjects 540/544/552/567/584/596, the six subjects on which the challenge entries were scored), RMSE is 18.74 and MAE is 13.24~mg/dL. Further 2020 entries report RMSE@30 of 18.34 and 19.60~mg/dL~\cite{ref65,ref70}. At 60 minutes, RMSE (31.16) is essentially tied with the best entry (31.10), and MAE (22.55) is lower than every entry except one whose MAE-to-RMSE ratio is far outside the range of the other entries~\cite{ref60}; differences in window eligibility, missing-data handling, external pretraining, and best-configuration reporting prevent a state-of-the-art claim. Across all 12 subjects, the only published comparison is GARNN~\cite{ref75} (18.97/13.34~mg/dL at 30 minutes), against which the all-subject result (18.84/13.08) should be read as a tie. The defensible advances are calibrated hypoglycemia detection, explicit personalized-versus-LOSO decomposition, preregistered validation of a physiological parameter, and a quantified account of the benefits and costs of Bergman constraints. The all-12-subject official figures reported throughout the Results section (e.g., 18.84/13.08 at 30 minutes) differ slightly from the 2020-cohort figures in Tables~\ref{tab:landscape} and~\ref{tab:published}; both are correct, answer different comparability questions, and should not be averaged together.
+At 30 minutes, the current work is mid-field relative to the 2020 challenge literature~\cite{ref64}, [\hyperref[ref60label]{70}-\hyperref[ref63label]{73}] (Table~\ref{tab:published}): on the matched 2020 cohort (subjects 540/544/552/567/584/596, the six subjects on which the challenge entries were scored), RMSE is 18.74 and MAE is 13.24~mg/dL. Further 2020 entries report RMSE@30 of 18.34 and 19.60~mg/dL~[\hyperref[ref65label]{74}-\hyperref[ref70label]{75}]. At 60 minutes, RMSE (31.16) is essentially tied with the best entry (31.10), and MAE (22.55) is lower than every entry except one whose MAE-to-RMSE ratio is far outside the range of the other entries~\cite{ref60}; differences in window eligibility, missing-data handling, external pretraining, and best-configuration reporting prevent a state-of-the-art claim. Across all 12 subjects, the only published comparison is GARNN~\cite{ref75} (18.97/13.34~mg/dL at 30 minutes), against which the all-subject result (18.84/13.08) should be read as a tie. The defensible advances are calibrated hypoglycemia detection, explicit personalized-versus-LOSO decomposition, preregistered validation of a physiological parameter, and a quantified account of the benefits and costs of Bergman constraints. The all-12-subject official figures reported throughout the Results section (e.g., 18.84/13.08 at 30 minutes) differ slightly from the 2020-cohort figures in Tables~\ref{tab:landscape} and~\ref{tab:published}; both are correct, answer different comparability questions, and should not be averaged together.
 
 \begin{table*}[t]
 \centering
@@ -1320,31 +1320,31 @@ Persistence & 24.22 & 17.45 & 40.11 & 29.51 & 51.15 & 38.34 & 58.98 & 44.83 \\
 %=================================================================
 \section{Discussion}
 
-The results separate three concepts that are often conflated in digital-twin and glucose-prediction literature~\cite{ref2}. First, a mechanistic constraint need not improve point accuracy to be useful. Here it supplies interpretable state variables and a stable $S_I$ estimate at little accuracy cost, while mechanistic features account for more than one quarter of total IG attribution. Second, a favorable error grid does not demonstrate event safety. The median forecast has excellent Clarke A+B coverage but inadequate hypoglycemia sensitivity; a calibrated predictive tail is required. Third, personalized temporal validation and cross-subject generalization answer different questions. The growing official--LOSO gap shows that access to a subject's history matters increasingly at longer horizons. Prospective digital-twin trials demonstrate the longer-term potential of individualized replay and adaptation, but do not remove the need to validate the forecasting layer independently~\cite{ref18}.
+The results separate three concepts that are often conflated in digital-twin and glucose-prediction literature~\cite{ref2}. First, a mechanistic constraint can be useful beyond point accuracy. Here it improves accuracy only modestly (0.51--2.38~mg/dL MAE across horizons over five seeds), but it also supplies interpretable state variables and a stable $S_I$ estimate, and mechanistic features account for more than one quarter of total IG attribution. Second, a favorable error grid does not demonstrate event safety. The median forecast has excellent Clarke A+B coverage but inadequate hypoglycemia sensitivity; a calibrated predictive tail is required. Third, personalized temporal validation and cross-subject generalization answer different questions. The growing official--LOSO gap shows that access to a subject's history matters increasingly at longer horizons. Prospective digital-twin trials demonstrate the longer-term potential of individualized replay and adaptation, but do not remove the need to validate the forecasting layer independently~\cite{ref18}.
 
 The ablation also exposes a structural limitation. Bergman's equilibrium at $G_b$ pulls trajectories toward the center of the glucose distribution. In the best configuration this adds approximately 1.3 mg/dL to an already-present regression-to-the-mean bias during hypoglycemia. This behavior appears whether physics enters as a penalty or a prior. A future model should modify the physiological structure rather than hide the bias with an asymmetric point loss.
 
 %=================================================================
 \section{Limitations and Future Work}
 
-The cohort contains only 12 subjects and approximately 2,800 effectively independent observations. While initial ablation screenings were conducted on seed 42, we evaluated 5-seed replications across A0 and A7 (Section~\ref{sec:multiseed_replication}) confirming that findings are statistically robust and that physics significantly reduces training variance across random seeds. OhioT1DM has no clamp measurement of $S_I$, so validation is indirect; LOSO external validity fails. Subject 552 has only 59.7\% test CGM coverage, and subject 567 has no carbohydrate records in the test interval. Body weight is unavailable. The alarm operating point was selected on validation data without test-set reuse (Section~\ref{sec:validation_threshold_selection}), but lacks an elicited clinical cost ratio. No counterfactual intervention is validated, so the system is a forecasting-centered digital twin rather than a validated treatment simulator.
+The cohort contains only 12 subjects and approximately 2,800 effectively independent observations. The ablation screen used a single seed (42); only A0 and A7 were replicated over five seeds (Section~\ref{sec:multiseed_replication}). OhioT1DM has no clamp measurement of $S_I$, so validation is indirect; LOSO external validity fails. Subject 552 has only 59.7\% test CGM coverage, and subject 567 has no carbohydrate records in the test interval. Body weight is unavailable. The alarm operating point was selected on validation data without test-set reuse (Section~\ref{sec:validation_threshold_selection}), but lacks an elicited clinical cost ratio. No counterfactual intervention is validated, so the system is a physics-guided forecaster rather than a digital twin or treatment simulator.
 
 The parameter head estimates a ten-component physiological vector $\theta_p$ for each subject, rather than only $S_I$. Table~\ref{tab:params} lists its components: $p_1$, $p_2$, $p_3$, $n$, $V_G$, $V_I$, $t_{\max,I}$, $k_{\text{gri}}$, $k_{\text{abs}}$, and $f$.
 
 Preregistered external validation (Table~\ref{tab:si} and Table~\ref{tab:si_circularity}) was carried out for $S_I$ alone, for three concrete reasons rather than by omission. First, $S_I$ is the one component with a direct clinical measurement analogue: a euglycemic clamp measures exactly this quantity, giving a real external target to validate against, whereas the remaining parameters have no equivalent bedside measurement available in OhioT1DM\@. Second, $S_I$ has literature-sourced plausible bounds specific to insulin-dependent diabetes~\cite{ref33}, giving its sigmoid-mapped range a population anchor that is not equally well established for every other compartment parameter. Third, the ablation (Table~\ref{tab:ablation}, A3 vs.\ A4) already shows that per-patient parameter estimation is accuracy-neutral overall (0.07--0.76 mg/dL), so the contribution claimed here is the external validity of one physiological quantity, not evidence that the other nine are unimportant. One concrete obstacle already blocks part of this extension: body weight is unavailable because every OhioT1DM file carries the same de-identification placeholder, which is why a body-weight-normalized analysis was not attempted for any parameter, not only $S_I$.
 
-Priority extensions are external validation on larger cohorts (e.g., Shanghai, DiaTrend), formal identifiability analysis of the remaining patient parameters, preregistered validation of the remaining Bergman and absorption parameters ($p_1, n, V_G, V_I$) against literature-sourced population anchors comparable to those used for $S_I$, time-varying $S_I$, a joint multi-horizon predictive distribution, decision-theoretic alarm selection with patient-specific cost matrices, longer context, and prospective validation of counterfactual meal and insulin interventions. Prediction Error-Grid Analysis (PRED-EGA) was designed specifically for glucose predictors~\cite{ref53}, and its complete operational boundaries have now been implemented and evaluated across all horizons (Table~\ref{tab:predega}).
+Priority extensions are external validation on larger cohorts (e.g., Shanghai, DiaTrend), formal identifiability analysis of the remaining patient parameters, preregistered validation of the remaining Bergman and absorption parameters ($p_1, n, V_G, V_I$) against literature-sourced population anchors comparable to those used for $S_I$, time-varying $S_I$, a joint multi-horizon predictive distribution, decision-theoretic alarm selection with patient-specific cost matrices, longer context, and prospective validation of counterfactual meal and insulin interventions.
 
 %=================================================================
 \section{Conclusion}
 
-An audited, physics-guided digital twin can outperform validated persistence across 30-120-minute horizons while making its limitations visible. Physics does not significantly improve point accuracy. The strongest evidence is instead that physiology can provide stable patient-specific structure at negligible predictive cost, and that calibrated distributional forecasting can recover hypoglycemic events missed by an otherwise accurate median forecast. Horizon integrity, subject-level statistics, matched generalization protocols, and explicit safety trade-offs are prerequisites for credible glucose forecasting.
+An audited, hybrid physics-guided forecaster can outperform a validated persistence baseline by 19--21\% RMSE across 30--120-minute horizons. Physics improves point accuracy only modestly, and significantly only across five seeds. The strongest evidence is instead that physiology can provide stable patient-specific structure alongside this small accuracy gain, and that calibrated distributional forecasting can recover hypoglycemic events missed by an otherwise accurate median forecast. Horizon integrity, subject-level statistics, matched generalization protocols, and explicit safety trade-offs are prerequisites for credible glucose forecasting.
 
 %=================================================================
 \appendices
 \section{Notation, Variables, and Terminology}
 
-This appendix defines the symbols, terms, abbreviations, and feature groups used in the manuscript. Rate constants are expressed per minute unless stated otherwise. A subscript $b$ denotes a basal or fasting quantity, a hat denotes a prediction, bold lowercase symbols denote vectors, and bold uppercase symbols denote matrices.
+This appendix summarizes the notation and feature groups used in the manuscript; full notation tables, including abbreviations, are in the Supplementary Material. Rate constants are expressed per minute unless stated otherwise. A subscript $b$ denotes a basal or fasting quantity, a hat denotes a prediction, bold lowercase symbols denote vectors, and bold uppercase symbols denote matrices.
 
 \subsection{Physiological States and Inputs}
 
@@ -1381,34 +1381,9 @@ The implementation-level objective, following Eq.~\eqref{eq:17}, can be written 
 
 The 35-input feature contract contains six groups: nine glucose features (current glucose, three rates of change, and rolling summaries); nine mechanistic features (IOB, COB, the six compartment states, and glucose appearance); four therapy/timing features; three cyclic-time features; six sensor values or availability masks; and four behavioral/context indicators. Glucose features account for 42.7\% of IG magnitude, mechanistic features 27.1\%, therapy 13.5\%, time 8.1\%, sensors 7.0\%, and context 1.7\%. Every sensor channel has an availability indicator so missingness is not represented as a physiologically extreme standardized zero. Input interpolation is explicitly flagged, whereas forecast targets are always real CGM observations.
 
-For reference, Table~\ref{tab:states} summarizes physiological state and input notation, Table~\ref{tab:params} the estimated patient-parameter vector, Table~\ref{tab:arch} architecture/discretization/uncertainty notation, Table~\ref{tab:loss} training-loss terminology, Table~\ref{tab:metrics} evaluation-metric definitions, and Table~\ref{tab:abbrev} the abbreviations used throughout this manuscript.
+Table~\ref{tab:params} lists the estimated patient-parameter vector. Notation tables for physiological states and inputs, architecture, discretization and uncertainty, training losses, evaluation metrics, and abbreviations are provided in the Supplementary Material.
 
-\begin{table*}[t]
-\centering
-\caption{Physiological state variables and external inputs}
-\label{tab:states}
-\footnotesize
-\begin{tabular}{clp{5cm}p{7cm}}
-\toprule
-Symbol & Unit & Name & Meaning in this study \\
-\midrule
-$G(t)$ & mg/dL & Plasma glucose & Glucose concentration forecast by the learned spline and constrained by the mechanistic equation. \\
-$G_b$ & mg/dL & Basal glucose & Subject-specific fasting anchor used by the Bergman equilibrium. \\
-$G_0$ & mg/dL & Anchor glucose & Last real CGM observation at forecast time $t=0$. \\
-$X(t)$ & min$^{-1}$ & Remote insulin action & Interstitial insulin effect entering glucose disposal additively with $p_1$. \\
-$I(t)$ & $\mu$U/mL & Plasma insulin & Circulating insulin concentration generated by subcutaneous absorption and clearance. \\
-$I_b$ & $\mu$U/mL & Basal plasma insulin & Concentration implied by the subject's basal delivery; subtracting it preserves basal equilibrium. \\
-$S_1, S_2$ & U & SC insulin states & First and second subcutaneous absorption compartments. \\
-$Q_{\text{sto}}$ & g & Stomach carbohydrate & Ingested carbohydrate awaiting gastric emptying. \\
-$Q_{\text{gut}}$ & g & Gut carbohydrate & Carbohydrate available for intestinal absorption. \\
-$R_a(t)$ & mg/min & Glucose appearance rate & Meal-derived glucose entering the accessible glucose compartment. \\
-$u_{\text{ins}}$ & U/min & Insulin input & Basal plus bolus insulin delivery on the five-minute grid. \\
-$u_{\text{carb}}$ & g/min & Meal input & Recorded carbohydrate ingestion on the grid. \\
-$\mathbf{z}$ & -- & Compartment state & ${[S_1, S_2, I, Q_{\text{sto}}, Q_{\text{gut}}, X]}^{\mathsf T}$. \\
-$\mathbf{u}$ & -- & Input vector & ${[u_{\text{ins}}, u_{\text{carb}}, I_b]}^{\mathsf T}$. \\
-\bottomrule
-\end{tabular}
-\end{table*}
+
 
 \begin{table*}[t]
 \centering
@@ -1433,112 +1408,13 @@ $f$ & Carbohydrate bioavailability & 0.70--1.00 & dimensionless & 0.90 \\
 \end{tabular}
 \end{table*}
 
-\begin{table*}[t]
-\centering
-\caption{Architecture, discretization, and uncertainty notation}
-\label{tab:arch}
-\footnotesize
-\begin{tabular}{lll}
-\toprule
-Symbol & Value or dimension & Definition \\
-\midrule
-$t$ & 0--120 min & Time measured from the forecast anchor. \\
-$h$ & 30, 60, 90, 120 min & Forecast horizon. \\
-$\Delta$ & 5 min & Common temporal grid step. \\
-$B$ & batch dependent & Number of windows processed together. \\
-$H$ & 4 & Number of reported forecast horizons. \\
-$K$ & 12 & Number of cubic B-spline basis functions. \\
-$B_k(t)$ & spline basis & The $k$th clamped, uniformly knotted B-spline basis function. \\
-$c_k$ & learned scalar & Spline coefficient emitted by the trajectory head. \\
-$G_\theta(t)$ & mg/dL & Anchored learned trajectory $G_0 + \sum_k c_k[B_k(t) - B_k(0)]$. \\
-$A, B$ & $6\times6$, $6\times3$ & Continuous compartment-state and input matrices. \\
-$A_d, B_d$ & discrete matrices & Exact zero-order-hold matrices obtained from one augmented matrix exponential. \\
-$\theta_p$ & 10 elements & Patient-specific physiological parameter vector in Table~\ref{tab:params}. \\
-$g = \sigma(\gamma)$ & initialized near 0.10 & Learned trust gate controlling the mechanistic prior. \\
-$\hat{G}_{0.5}$ & mg/dL & Median forecast and reported point prediction. \\
-$\hat{G}_q$ & mg/dL & Forecast at quantile level $q \in \{0.1, 0.5, 0.9\}$. \\
-$\delta_q(h)$ & mg/dL & Positive softplus-derived distance from the median, preventing quantile crossing. \\
-$r(t)$ & dimensionless & Scale-normalized physics residual evaluated at 121 collocation points. \\
-$n_{\text{eff}}$ & $\approx N/48$ & Approximate independent sample count after accounting for window overlap. \\
-\bottomrule
-\end{tabular}
-\end{table*}
 
-\begin{table*}[t]
-\centering
-\caption{Training-loss terminology}
-\label{tab:loss}
-\footnotesize
-\begin{tabular}{lp{13cm}}
-\toprule
-Term & Meaning \\
-\midrule
-$\mathcal{L}_{\text{Huber}}$ & Horizon-weighted robust point loss for the median forecast; quadratic near zero error and linear for large errors. \\
-$\mathcal{L}_{\text{pinball}}$ & Proper quantile loss $\max\{q(y-\hat{y}_q), (q-1)(y-\hat{y}_q)\}$. \\
-$\mathcal{L}_{\text{res}}$ & Mean squared, nondimensionalized Bergman residual over the collocation grid. \\
-$\mathcal{L}_{\text{prior}}$ & Weak population-prior penalty that discourages physiologically implausible parameter drift. \\
-$\mathcal{L}_{\text{temporal}}$ & Within-subject penalty on disagreement between parameter estimates from adjacent windows. \\
-$w_{\text{phys}}$ & Physics weight, adaptive in the relevant ablation arms and optionally multiplied by a curriculum ramp. \\
-$s_i = \log\sigma_i^2$ & Stable log-variance parameterization used for learned multi-objective weighting~\cite{ref42}. \\
-\bottomrule
-\end{tabular}
-\end{table*}
 
-\begin{table*}[t]
-\centering
-\caption{Evaluation metrics and clinical terms}
-\label{tab:metrics}
-\footnotesize
-\begin{tabular}{llp{12.3cm}}
-\toprule
-Term & Unit & Definition and interpretation \\
-\midrule
-MAE & mg/dL & Mean absolute error, $n^{-1}\sum_i |\hat{y}_i - y_i|$. \\
-RMSE & mg/dL & Root-mean-square error, emphasizing larger deviations. \\
-$R^2$ & -- & $1 - \text{SS}_{\text{res}}/\text{SS}_{\text{tot}}$. \\
-MARD & \% & Mean absolute relative difference, with reference glucose in the denominator. \\
-Skill & \% & $1 - \text{RMSE}_{\text{model}}/\text{RMSE}_{\text{persistence}}$. Positive values beat no-change prediction. \\
-TIR/TAR/TBR & \% & Time in, above, or below the consensus glucose range. The main in-range interval is 70--180 mg/dL~\cite{ref52}. \\
-CV ratio & -- & $\text{CV}_{\text{pred}}/\text{CV}_{\text{actual}}$; values below one quantify excursion compression. \\
-LBGI/HBGI & -- & Low/high blood-glucose risk indices after the Kovatchev symmetric risk transform. \\
-Coverage & -- & Fraction of observations below a stated predictive quantile; calibration requires observed and nominal coverage to agree. \\
-Hypo sensitivity & -- & Fraction of actual $G<70$ mg/dL events detected by the forecast or alarm. \\
-Precision & -- & Fraction of hypoglycemia alarms corresponding to actual events. \\
-ICC(1) & -- & One-way, single-measure intraclass correlation used for $S_I$ test--retest stability~\cite{ref50}. \\
-$\rho$ & -- & Spearman rank correlation used for monotonic association with insulin dose~\cite{ref51}. \\
-$\text{IG}_i$ & mg/dL & Integrated-gradient attribution of feature $i$ relative to the standardized-mean baseline. \\
-Clarke/Parkes EGA & zone & Point-wise clinical error grids originally designed for glucose-measurement error. \\
-PRED-EGA & category & Prediction-specific error grid combining level and rate information~\cite{ref53}; not implemented here. \\
-\bottomrule
-\end{tabular}
-\end{table*}
 
-\begin{table*}[t]
-\centering
-\caption{Abbreviations and protocol terminology}
-\label{tab:abbrev}
-\footnotesize
-\begin{tabular}{lp{4.5cm}p{9cm}}
-\toprule
-Short form & Expansion & Study-specific meaning \\
-\midrule
-T1D/IDDM & Type 1 diabetes / insulin-dependent diabetes mellitus & IDDM is retained only when describing older physiological literature. \\
-CGM & Continuous glucose monitoring & Nominal five-minute glucose sampling in OhioT1DM. \\
-SC & Subcutaneous & Route represented by insulin compartments $S_1$ and $S_2$. \\
-IOB/COB & Insulin/carbohydrate on board & Derived as $S_1+S_2$ and $Q_{\text{sto}}+Q_{\text{gut}}$. \\
-TDD/ICR & Total daily insulin dose / insulin-to-carbohydrate ratio & External consistency variables for the physiology analysis; ICR is available only for six subjects. \\
-PINN/ODE & Physics-informed neural network / ordinary differential equation & Neural training constrained by the physiological differential equations. \\
-LOSO & Leave-one-subject-out & Twelve subject-disjoint folds, each withholding all data from one test subject. \\
-Official protocol & OhioT1DM temporal holdout & Later data from subjects whose earlier data are available for training; therefore personalized. \\
-BGLP & Blood Glucose Level Prediction challenge & OhioT1DM challenge setting; 2018 and 2020 have different test warmup rules. \\
-EGA & Error-grid analysis & Clarke and Parkes clinical zone classification. \\
-IG/SHAP & Integrated gradients / SHapley Additive exPlanations & IG is used; the legacy single-timestep SHAP procedure was rejected. \\
-SD/CI/ICC & Standard deviation / confidence interval / intraclass correlation & Uncertainty and reliability summaries computed at the subject level. \\
-A0--A7 & Ablation arms & Controlled variants of physics form, weighting, parameter personalization, and curriculum. \\
-ZOH & Zero-order hold & Exact interval propagation under piecewise-constant inputs; also used in the literature for persistence. \\
-\bottomrule
-\end{tabular}
-\end{table*}
+
+
+
+
 \mbox{}\par
 \clearpage
 %=================================================================
@@ -1548,31 +1424,8 @@ ZOH & Zero-order hold & Exact interval propagation under piecewise-constant inpu
 \setlength{\itemsep}{1.5pt}
 
 \bibitem{ref1}\label{ref1label} R.~N. Bergman, Y.~Z. Ider, C.~R. Bowden, and C. Cobelli, ``Quantitative estimation of insulin sensitivity,'' \emph{Am. J. Physiol.}, vol. 236, no. 6, pp. E667--E677, 1979.
+
 \bibitem{ref2}\label{ref2label} G. Cappon and A. Facchinetti, ``Digital twins in type 1 diabetes: A systematic review,'' \emph{J. Diabetes Sci. Technol.}, vol. 19, no. 1, 2025.
-\bibitem{ref3}\label{ref3label} C. Duckworth, M.~J. Guy, \emph{et al.}, ``Explainable machine learning for real-time hypoglycemia and hyperglycemia prediction and personalized control recommendations,'' \emph{J. Diabetes Sci. Technol.}, vol. 18, no. 1, 2024.
-\bibitem{ref4}\label{ref4label} R. Hasan, V. Dattana, S. Mahmood, and S. Hassan, ``Towards transparent diabetes prediction: combining AutoML and explainable AI for improved clinical insights,'' \emph{Information}, vol. 16, no. 1, p. 7, 2025.
-\bibitem{ref5}\label{ref5label} S.~L. Cichosz, S.~S. Olesen, and M.~H. Jensen, ``Explainable machine-learning models to predict weekly risk of hyperglycemia, hypoglycemia, and glycemic variability in patients with type 1 diabetes based on continuous glucose monitoring,'' \emph{J. Diabetes Sci. Technol.}, vol. 20, no. 3, pp. 836--847, 2024.
-\bibitem{ref6}\label{ref6label} A. Adjevi, A.~M. Abdirashid, F. Akta\c{s}, M.~H.~B. Ucar, and S. Solak, ``Explainable reinforcement learning for glucose monitoring based on Shapley value analysis,'' \emph{Comput. Methods Programs Biomed.}, vol. 278, 2026.
-\bibitem{ref7}\label{ref7label} A.~Y. Ahmed, ``Personalized glycemic control modeling using explainable artificial intelligence for optimizing diabetes management,'' \emph{Scientia. Technology, Science and Society}, vol. 3, no. 1, 2026.
-\bibitem{ref8}\label{ref8label} M. Raissi, P. Perdikaris, and G.~E. Karniadakis, ``Physics-informed neural networks: A deep learning framework for solving forward and inverse problems involving nonlinear partial differential equations,'' \emph{J. Comput. Phys.}, vol. 378, pp. 686--707, 2019.
-
-\bibitem{ref9}\label{ref9label} R. Pei and W. Wang, ``PINN based short-term glucose prediction for type 1 diabetes,'' in \emph{2025 4th Asia Conf. Algorithms, Computing and Machine Learning (CACML)}, Guangzhou, China, 2025, pp. 1--6.
-\bibitem{ref10}\label{ref10label} M. Wang, H. Zhang, and R. Song, ``Blood glucose prediction algorithm via PINN under Bergman's Minimal Model constraints,'' in \emph{2025 IEEE 14th Data Driven Control and Learning Systems Conf. (DDCLS)}, Wuxi, China, 2025, pp. 1797--1802.
-\bibitem{ref11}\label{ref11label} W. Wang, R. Pei, D. Li, S. Liu, Y. Geng, and S. Wang, ``A physics-informed glucose-insulin neural network model for glucose prediction,'' \emph{Tsinghua Sci. Technol.}, 2026.
-
-\bibitem{ref12}\label{ref12label} P.~A. Mongini, M. Drecogna, and C. Toffanin, ``New physics-LSTM hybrid models for control-oriented glucose prediction in Type 1 Diabetes,'' in \emph{2025 American Control Conf. (ACC)}, Denver, CO, USA, 2025, pp. 662--667.
-
-\bibitem{ref13}\label{ref13label} P. Colmegna, K. Wang, J. Garcia-Tirado, and M.~D. Breton, ``Mapping data to virtual patients in type 1 diabetes,'' \emph{Control Eng. Pract.}, vol. 103, Art. no. 104605, 2020, doi: 10.1016/j.conengprac.2020.104605.
-
-\bibitem{ref14}\label{ref14label} G. Cappon, M. Vettoretti, G. Sparacino, S. Del Favero, and A. Facchinetti, ``ReplayBG: A digital twin-based methodology to identify a personalized model from type 1 diabetes data and simulate glucose concentrations to assess alternative therapies,'' \emph{IEEE Trans. Biomed. Eng.}, vol. 70, no. 11, pp. 3227--3238, 2023, doi: 10.1109/TBME.2023.3286856.
-
-\bibitem{ref15}\label{ref15label} M. Hwang, V.~P. Rachim, J. Yoo, Y. Lee, and S.-M. Park, ``Generalized multi task learning framework for glucose forecasting and hypoglycemia detection using simulation to reality,'' \emph{npj Digit. Med.}, vol. 8, Art. no. 612, 2025, doi: 10.1038/s41746-025-01994-4.
-
-\bibitem{ref16}\label{ref16label} V. Roquemen-Echeverri, T. Kushner, P.~G. Jacobs, and C. Mosquera-Lopez, ``A physiologically-constrained neural network digital twin framework for replicating glucose dynamics in type 1 diabetes,'' \emph{Neural Comput. Appl.}, vol. 38, p. 241, 2026.
-
-\bibitem{ref17}\label{ref17label} C.~E. Builes-Monta\~no, L. Lema-Perez, A. Ram\'{\i}rez-Rinc\'on, J.~J. Zuleta-Tob\'on, J.~C. Restrepo-Guti\'errez, H.~D. \'Alvarez-Zapata, J. Garc\'{\i}a-Tirado, \emph{et al.}, ``A digital twin-enhanced decision support system improves time-in-range in type 1 diabetes: a randomised clinical trial,'' \emph{Sci. Rep.}, vol. 15, Art. no. 39738, 2025, doi: 10.1038/s41598-025-23165-x.
-
-\bibitem{ref18}\label{ref18label} B. Kovatchev, P. Colmegna, J. Pavan, J. Diaz Casta\~neda, M. Villa Tamayo, C. Koravi, G. Santini, C. Alix, M. Stumpf, and S. Brown, ``Human-machine co-adaptation to automated insulin delivery: A randomised clinical trial using digital twin technology,'' \emph{npj Digit. Med.}, vol. 8, 2025.
 
 \bibitem{ref19}\label{ref19label} E. Acu\~{n}a and R. Aparicio, ``Predicting the blood glucose level using transformers,'' in \emph{Proc. 2023 Int. Conf. Computational Science and Computational Intelligence (CSCI)}, 2023, pp. 1392--1399, doi: 10.1109/CSCI62032.2023.00228.
 
@@ -1582,7 +1435,35 @@ ZOH & Zero-order hold & Exact interval propagation under piecewise-constant inpu
 
 \bibitem{ref22}\label{ref22label} X. Xiong, X. Yang, Y. Cai, Y. Xue, J. He, and H. Su, ``Exploring the potential of deep learning models integrating transformer and LSTM in predicting blood glucose levels for T1D patients,'' \emph{Digit. Health}, vol. 11, Art. no. 20552076251328980, 2025, doi: 10.1177/20552076251328980.
 
-\bibitem{ref23}\label{ref23label} F.~J. Lara-Abelenda, D. Chushig-Muzo, P. Peiro-Corbacho, A.~M. W\"agner, C. Granja, and C. Soguero-Ruiz, ``Personalized glucose forecasting for people with type 1 diabetes using large language models,'' \emph{Comput. Methods Programs Biomed.}, vol. 265, Art. no. 108737, 2025, doi: 10.1016/j.cmpb.2025.108737.
+\bibitem{ref3}\label{ref3label} C. Duckworth, M.~J. Guy, \emph{et al.}, ``Explainable machine learning for real-time hypoglycemia and hyperglycemia prediction and personalized control recommendations,'' \emph{J. Diabetes Sci. Technol.}, vol. 18, no. 1, 2024.
+
+\bibitem{ref5}\label{ref5label} S.~L. Cichosz, S.~S. Olesen, and M.~H. Jensen, ``Explainable machine-learning models to predict weekly risk of hyperglycemia, hypoglycemia, and glycemic variability in patients with type 1 diabetes based on continuous glucose monitoring,'' \emph{J. Diabetes Sci. Technol.}, vol. 20, no. 3, pp. 836--847, 2024.
+
+\bibitem{ref8}\label{ref8label} M. Raissi, P. Perdikaris, and G.~E. Karniadakis, ``Physics-informed neural networks: A deep learning framework for solving forward and inverse problems involving nonlinear partial differential equations,'' \emph{J. Comput. Phys.}, vol. 378, pp. 686--707, 2019.
+
+\bibitem{ref9}\label{ref9label} R. Pei and W. Wang, ``PINN based short-term glucose prediction for type 1 diabetes,'' in \emph{2025 4th Asia Conf. Algorithms, Computing and Machine Learning (CACML)}, Guangzhou, China, 2025, pp. 1--6.
+
+\bibitem{ref10}\label{ref10label} M. Wang, H. Zhang, and R. Song, ``Blood glucose prediction algorithm via PINN under Bergman's Minimal Model constraints,'' in \emph{2025 IEEE 14th Data Driven Control and Learning Systems Conf. (DDCLS)}, Wuxi, China, 2025, pp. 1797--1802.
+
+\bibitem{ref11}\label{ref11label} W. Wang, R. Pei, D. Li, S. Liu, Y. Geng, and S. Wang, ``A physics-informed glucose-insulin neural network model for glucose prediction,'' \emph{Tsinghua Sci. Technol.}, 2026.
+
+\bibitem{ref12}\label{ref12label} P.~A. Mongini, M. Drecogna, and C. Toffanin, ``New physics-LSTM hybrid models for control-oriented glucose prediction in Type 1 Diabetes,'' in \emph{2025 American Control Conf. (ACC)}, Denver, CO, USA, 2025, pp. 662--667.
+
+\bibitem{ref13}\label{ref13label} P. Colmegna, K. Wang, J. Garcia-Tirado, and M.~D. Breton, ``Mapping data to virtual patients in type 1 diabetes,'' \emph{Control Eng. Pract.}, vol. 103, Art. no. 104605, 2020, doi: 10.1016/j.conengprac.2020.104605.
+
+\bibitem{ref14}\label{ref14label} G. Cappon, M. Vettoretti, G. Sparacino, S. Del Favero, and A. Facchinetti, ``ReplayBG: A digital twin-based methodology to identify a personalized model from type 1 diabetes data and simulate glucose concentrations to assess alternative therapies,'' \emph{IEEE Trans. Biomed. Eng.}, vol. 70, no. 11, pp. 3227--3238, 2023, doi: 10.1109/TBME.2023.3286856.
+
+\bibitem{ref16}\label{ref16label} V. Roquemen-Echeverri, T. Kushner, P.~G. Jacobs, and C. Mosquera-Lopez, ``A physiologically-constrained neural network digital twin framework for replicating glucose dynamics in type 1 diabetes,'' \emph{Neural Comput. Appl.}, vol. 38, p. 241, 2026.
+
+\bibitem{ref17}\label{ref17label} C.~E. Builes-Monta\~no, L. Lema-Perez, A. Ram\'{\i}rez-Rinc\'on, J.~J. Zuleta-Tob\'on, J.~C. Restrepo-Guti\'errez, H.~D. \'Alvarez-Zapata, J. Garc\'{\i}a-Tirado, \emph{et al.}, ``A digital twin-enhanced decision support system improves time-in-range in type 1 diabetes: a randomised clinical trial,'' \emph{Sci. Rep.}, vol. 15, Art. no. 39738, 2025, doi: 10.1038/s41598-025-23165-x.
+
+\bibitem{ref18}\label{ref18label} B. Kovatchev, P. Colmegna, J. Pavan, J. Diaz Casta\~neda, M. Villa Tamayo, C. Koravi, G. Santini, C. Alix, M. Stumpf, and S. Brown, ``Human-machine co-adaptation to automated insulin delivery: A randomised clinical trial using digital twin technology,'' \emph{npj Digit. Med.}, vol. 8, 2025.
+
+\bibitem{ref6}\label{ref6label} A. Adjevi, A.~M. Abdirashid, F. Akta\c{s}, M.~H.~B. Ucar, and S. Solak, ``Explainable reinforcement learning for glucose monitoring based on Shapley value analysis,'' \emph{Comput. Methods Programs Biomed.}, vol. 278, 2026.
+
+\bibitem{ref7}\label{ref7label} A.~Y. Ahmed, ``Personalized glycemic control modeling using explainable artificial intelligence for optimizing diabetes management,'' \emph{Scientia. Technology, Science and Society}, vol. 3, no. 1, 2026.
+
+\bibitem{ref15}\label{ref15label} M. Hwang, V.~P. Rachim, J. Yoo, Y. Lee, and S.-M. Park, ``Generalized multi task learning framework for glucose forecasting and hypoglycemia detection using simulation to reality,'' \emph{npj Digit. Med.}, vol. 8, Art. no. 612, 2025, doi: 10.1038/s41746-025-01994-4.
 
 \bibitem{ref24}\label{ref24label} D. Darpit, K. Vyas, J.~K. Jayagopal, A. Garcia, M. Erraguntla, and M. Lawley, ``A personalized federated learning-based glucose prediction algorithm for high-risk glycemic excursion regions in type 1 diabetes,'' \emph{Sci. Rep.}, vol. 15, Art. no. 38376, 2025.
 
@@ -1592,9 +1473,29 @@ ZOH & Zero-order hold & Exact interval propagation under piecewise-constant inpu
 
 \bibitem{ref27}\label{ref27label} Y. Lu \emph{et al.}, ``A pretrained transformer model for decoding individual glucose dynamics from continuous glucose monitoring data,'' \emph{Natl. Sci. Rev.}, vol. 12, no. 5, Art. no. nwaf039, 2025.
 
-\bibitem{ref28}\label{ref28label} D. Wang, J. Liang, J. Ye, J. Li, J. Li, Q. Zhang, Q. Hu, C. Pan, D. Wang, Z. Liu, W. Shi, D. Shi, F. Li, B. Qu, and Y. Zheng, ``Enhancement of the performance of large language models in diabetes education through retrieval-augmented generation: comparative study,'' \emph{J. Med. Internet Res.}, vol. 26, Art. no. e58041, 2024.
-
 \bibitem{ref29}\label{ref29label} S.~B. Soumma and H. Ghasemzadeh, ``GlyRAG: Context-aware retrieval-augmented framework for blood glucose forecasting,'' arXiv preprint, 2026.
+
+\bibitem{ref66}\label{ref66label} H. Nemat, H. Khadem, J. Elliott, and M. Benaissa, ``Data fusion of activity and CGM for predicting blood glucose levels,'' in \emph{Proc. 5th Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2675, pp. 120--124, 2020.
+
+\bibitem{ref67}\label{ref67label} H. Khadem, H. Nemat, J. Elliott, and M. Benaissa, ``Multi-lag stacking for blood glucose level prediction,'' in \emph{Proc. 5th Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2675, pp. 146--150, 2020.
+
+\bibitem{ref68}\label{ref68label} X. Sun, M. Rashid, M. Sevil, N. Hobbs, R. Brandt, M.~R. Askari, A. Shahidehpour, and A. Cinar, ``Prediction of blood glucose levels for people with type 1 diabetes using latent-variable-based model,'' in \emph{Proc. 5th Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2675, pp. 115--119, 2020.
+
+\bibitem{ref69}\label{ref69label} M. Mayo and T. Koutny, ``Neural multi-class classification approach to blood glucose level forecasting with prediction uncertainty visualisation,'' in \emph{Proc. 5th Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2675, pp. 80--84, 2020.
+
+\bibitem{ref71}\label{ref71label} J. Daniels, P. Herrero, and P. Georgiou, ``Personalised glucose prediction via deep multitask networks,'' in \emph{Proc. 5th Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2675, pp. 110--114, 2020.
+
+\bibitem{ref72}\label{ref72label} N. Ma, Y. Zhao, S. Wen, T. Yang, R. Wu, R. Tao, X. Yu, and H. Li, ``Online blood glucose prediction using autoregressive moving average model with residual compensation network,'' in \emph{Proc. 5th Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2675, pp. 151--155, 2020.
+
+\bibitem{ref73}\label{ref73label} G. Cappon, L. Meneghetti, F. Prendin, J. Pavan, G. Sparacino, S. Del Favero, and A. Facchinetti, ``A personalized and interpretable deep learning based approach to predict blood glucose concentration in type 1 diabetes,'' in \emph{Proc. 5th Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2675, pp. 75--79, 2020.
+
+\bibitem{ref74}\label{ref74label} A.~R. Bhimireddy, P. Sinha, B. Oluwalade, J.~W. Gichoya, and S. Purkayastha, ``Blood glucose level prediction as time-series modeling using sequence-to-sequence neural networks,'' in \emph{Proc. 5th Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2675, pp. 125--130, 2020.
+
+\bibitem{ref58}\label{ref58label} A. Bertachi, L. Biagi, I. Contreras, N. Luo, and J. Veh\'{\i}, ``Prediction of blood glucose levels and nocturnal hypoglycemia using physiological models and artificial neural networks,'' in \emph{Proc. 3rd Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2148, pp. 85--90, 2018.
+
+\bibitem{ref56}\label{ref56label} J. Martinsson, A. Schliep, B. Eliasson, C. Meijner, S. Persson, and O. Mogren, ``Automatic blood glucose prediction with confidence using recurrent neural networks,'' in \emph{Proc. 3rd Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2148, pp. 64--68, 2018.
+
+\bibitem{ref57}\label{ref57label} J. Xie and Q. Wang, ``Benchmark machine learning approaches with classical time series approaches on the blood glucose level prediction challenge,'' in \emph{Proc. 3rd Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2148, pp. 97--102, 2018.
 
 \bibitem{ref30}\label{ref30label} C. Marling and R. Bunescu, ``The OhioT1DM dataset for blood glucose level prediction,'' in \emph{Proc. 3rd Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2148, pp. 60--63, 2018.
 
@@ -1628,6 +1529,8 @@ ZOH & Zero-order hold & Exact interval propagation under piecewise-constant inpu
 
 \bibitem{ref45}\label{ref45label} A. Pf\"utzner, D.~C. Klonoff, S. Pardo, and J.~L. Parkes, ``Technical aspects of the Parkes error grid,'' \emph{J. Diabetes Sci. Technol.}, vol. 7, no. 5, pp. 1275--1281, 2013.
 
+\bibitem{ref52}\label{ref52label} T. Battelino \emph{et al.}, ``Clinical targets for continuous glucose monitoring data interpretation: Recommendations from the International Consensus on Time in Range,'' \emph{Diabetes Care}, vol. 42, no. 8, pp. 1593--1603, 2019.
+
 \bibitem{ref46}\label{ref46label} B.~P. Kovatchev, D.~J. Cox, L.~A. Gonder-Frederick, and W.~L. Clarke, ``Symmetrization of the blood glucose measurement scale and its applications,'' \emph{Diabetes Care}, vol. 20, no. 11, pp. 1655--1658, 1997.
 
 \bibitem{ref47}\label{ref47label} B.~P. Kovatchev \emph{et al.}, ``Evaluation of a new measure of blood glucose variability in diabetes,'' \emph{Diabetes Care}, vol. 29, no. 11, pp. 2433--2438, 2006.
@@ -1640,21 +1543,23 @@ ZOH & Zero-order hold & Exact interval propagation under piecewise-constant inpu
 
 \bibitem{ref51}\label{ref51label} C. Spearman, ``The proof and measurement of association between two things,'' \emph{Am. J. Psychol.}, vol. 15, no. 1, pp. 72--101, 1904.
 
-\bibitem{ref52}\label{ref52label} T. Battelino \emph{et al.}, ``Clinical targets for continuous glucose monitoring data interpretation: Recommendations from the International Consensus on Time in Range,'' \emph{Diabetes Care}, vol. 42, no. 8, pp. 1593--1603, 2019.
-
-\bibitem{ref53}\label{ref53label} S. Sivananthan, V. Naumova, C. Dalla Man, A. Facchinetti, E. Renard, C. Cobelli, and S.~V. Pereverzyev, ``Assessment of blood glucose predictors: The prediction-error grid analysis,'' \emph{Diabetes Technol. Ther.}, vol. 13, no. 8, pp. 787--796, 2011.
+\bibitem{ref79}\label{ref79label} B.~A. Nosek, C.~R. Ebersole, A.~C. DeHaven, and D.~T. Mellor, ``The preregistration revolution,'' \emph{Proc. Natl. Acad. Sci. U.S.A.}, vol. 115, no. 11, pp. 2600--2606, 2018.
 
 \bibitem{ref54}\label{ref54label} M. Sundararajan, A. Taly, and Q. Yan, ``Axiomatic attribution for deep networks,'' in \emph{Proc. 34th Int. Conf. Mach. Learn.}, PMLR, vol. 70, 2017, pp. 3319--3328.
 
 \bibitem{ref55}\label{ref55label} L. Breiman, ``Random forests,'' \emph{Mach. Learn.}, vol. 45, pp. 5--32, 2001.
 
-\bibitem{ref56}\label{ref56label} J. Martinsson, A. Schliep, B. Eliasson, C. Meijner, S. Persson, and O. Mogren, ``Automatic blood glucose prediction with confidence using recurrent neural networks,'' in \emph{Proc. 3rd Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2148, pp. 64--68, 2018.
+\bibitem{ref64}\label{ref64label} T. Yang \emph{et al.}, ``Multi-scale long short-term memory network with multi-lag structure for blood glucose prediction,'' in \emph{Proc. 5th Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2675, pp. 136--140, 2020.
 
-\bibitem{ref57}\label{ref57label} J. Xie and Q. Wang, ``Benchmark machine learning approaches with classical time series approaches on the blood glucose level prediction challenge,'' in \emph{Proc. 3rd Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2148, pp. 97--102, 2018.
+\bibitem{ref76}\label{ref76label} T.~K. Koo and M.~Y. Li, ``A guideline of selecting and reporting intraclass correlation coefficients for reliability research,'' \emph{J. Chiropr. Med.}, vol. 15, no. 2, pp. 155--163, 2016.
 
-\bibitem{ref58}\label{ref58label} A. Bertachi, L. Biagi, I. Contreras, N. Luo, and J. Veh\'{\i}, ``Prediction of blood glucose levels and nocturnal hypoglycemia using physiological models and artificial neural networks,'' in \emph{Proc. 3rd Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2148, pp. 85--90, 2018.
+\bibitem{ref77}\label{ref77label} P. Davidson, H. Hebblewhite, R. Steed, and B. Bode, ``Analysis of guidelines for basal-bolus insulin dosing: Basal insulin, correction factor, and carbohydrate-to-insulin ratio,'' \emph{Endocr. Pract.}, vol. 14, no. 9, pp. 1095--1101, 2008, doi: 10.4158/EP.14.9.1095.
+
+\bibitem{ref78}\label{ref78label} B. Efron and R.~J. Tibshirani, \emph{An Introduction to the Bootstrap}. New York, NY, USA: Chapman \& Hall, 1993.
 
 \bibitem{ref59}\label{ref59label} K. Gu, R. Dang, and T. Prioleau, ``Neural physiological model: A simple module for blood glucose prediction,'' in \emph{Proc. 42nd Annu. Int. Conf. IEEE Eng. Med. Biol. Soc.}, 2020, pp. 5476--5481.
+
+\bibitem{ref53}\label{ref53label} S. Sivananthan, V. Naumova, C. Dalla Man, A. Facchinetti, E. Renard, C. Cobelli, and S.~V. Pereverzyev, ``Assessment of blood glucose predictors: The prediction-error grid analysis,'' \emph{Diabetes Technol. Ther.}, vol. 13, no. 8, pp. 787--796, 2011.
 
 \bibitem{ref60}\label{ref60label} J. Pavan \emph{et al.}, ``Personalized machine learning algorithm based on shallow network and error imputation module for an improved blood glucose prediction,'' in \emph{Proc. 5th Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2675, pp. 95--99, 2020.
 
@@ -1664,35 +1569,11 @@ ZOH & Zero-order hold & Exact interval propagation under piecewise-constant inpu
 
 \bibitem{ref63}\label{ref63label} J. Freiburghaus, A. Rizzotti-Kaddouri, and F. Albertetti, ``A deep learning approach for blood glucose prediction and monitoring of type 1 diabetes patients,'' in \emph{Proc. 5th Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2675, pp. 131--135, 2020.
 
-\bibitem{ref64}\label{ref64label} T. Yang \emph{et al.}, ``Multi-scale long short-term memory network with multi-lag structure for blood glucose prediction,'' in \emph{Proc. 5th Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2675, pp. 136--140, 2020.
-
 \bibitem{ref65}\label{ref65label} T. Zhu, X. Yao, K. Li, P. Herrero, and P. Georgiou, ``Blood glucose prediction for type 1 diabetes using generative adversarial networks,'' in \emph{Proc. 5th Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2675, pp. 90--94, 2020.
-
-\bibitem{ref66}\label{ref66label} H. Nemat, H. Khadem, J. Elliott, and M. Benaissa, ``Data fusion of activity and CGM for predicting blood glucose levels,'' in \emph{Proc. 5th Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2675, pp. 120--124, 2020.
-
-\bibitem{ref67}\label{ref67label} H. Khadem, H. Nemat, J. Elliott, and M. Benaissa, ``Multi-lag stacking for blood glucose level prediction,'' in \emph{Proc. 5th Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2675, pp. 146--150, 2020.
-
-\bibitem{ref68}\label{ref68label} X. Sun, M. Rashid, M. Sevil, N. Hobbs, R. Brandt, M.~R. Askari, A. Shahidehpour, and A. Cinar, ``Prediction of blood glucose levels for people with type 1 diabetes using latent-variable-based model,'' in \emph{Proc. 5th Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2675, pp. 115--119, 2020.
-
-\bibitem{ref69}\label{ref69label} M. Mayo and T. Koutny, ``Neural multi-class classification approach to blood glucose level forecasting with prediction uncertainty visualisation,'' in \emph{Proc. 5th Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2675, pp. 80--84, 2020.
 
 \bibitem{ref70}\label{ref70label} D. Joedicke, G. Kronberger, J.~M. Colmenar, S. Winkler, J.~M. Velasco, S. Contador, and J.~I. Hidalgo, ``Analysis of the performance of genetic programming on the Blood Glucose Level Prediction Challenge 2020,'' in \emph{Proc. 5th Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2675, pp. 141--145, 2020.
 
-\bibitem{ref71}\label{ref71label} J. Daniels, P. Herrero, and P. Georgiou, ``Personalised glucose prediction via deep multitask networks,'' in \emph{Proc. 5th Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2675, pp. 110--114, 2020.
-
-\bibitem{ref72}\label{ref72label} N. Ma, Y. Zhao, S. Wen, T. Yang, R. Wu, R. Tao, X. Yu, and H. Li, ``Online blood glucose prediction using autoregressive moving average model with residual compensation network,'' in \emph{Proc. 5th Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2675, pp. 151--155, 2020.
-
-\bibitem{ref73}\label{ref73label} G. Cappon, L. Meneghetti, F. Prendin, J. Pavan, G. Sparacino, S. Del Favero, and A. Facchinetti, ``A personalized and interpretable deep learning based approach to predict blood glucose concentration in type 1 diabetes,'' in \emph{Proc. 5th Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2675, pp. 75--79, 2020.
-
-\bibitem{ref74}\label{ref74label} A.~R. Bhimireddy, P. Sinha, B. Oluwalade, J.~W. Gichoya, and S. Purkayastha, ``Blood glucose level prediction as time-series modeling using sequence-to-sequence neural networks,'' in \emph{Proc. 5th Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2675, pp. 125--130, 2020.
-
 \bibitem{ref75}\label{ref75label} C. Piao, T. Zhu, S.~E. Baldeweg, P. Taylor, P. Georgiou, J. Sun, J. Wang, and K. Li, ``GARNN: An interpretable graph attentive recurrent neural network for predicting blood glucose levels via multivariate time series,'' \emph{Neural Netw.}, vol. 185, Art. no. 107229, 2025, doi: 10.1016/j.neunet.2025.107229.
-
-\bibitem{ref76}\label{ref76label} T.~K. Koo and M.~Y. Li, ``A guideline of selecting and reporting intraclass correlation coefficients for reliability research,'' \emph{J. Chiropr. Med.}, vol. 15, no. 2, pp. 155--163, 2016.
-\bibitem{ref77}\label{ref77label} P. Davidson, H. Hebblewhite, R. Steed, and B. Bode, ``Analysis of guidelines for basal-bolus insulin dosing: Basal insulin, correction factor, and carbohydrate-to-insulin ratio,'' \emph{Endocr. Pract.}, vol. 14, no. 9, pp. 1095--1101, 2008, doi: 10.4158/EP.14.9.1095.
-\bibitem{ref78}\label{ref78label} B. Efron and R.~J. Tibshirani, \emph{An Introduction to the Bootstrap}. New York, NY, USA: Chapman \& Hall, 1993.
-\bibitem{ref79}\label{ref79label} B.~A. Nosek, C.~R. Ebersole, A.~C. DeHaven, and D.~T. Mellor, ``The preregistration revolution,'' \emph{Proc. Natl. Acad. Sci. U.S.A.}, vol. 115, no. 11, pp. 2600--2606, 2018.
-
 
 \end{thebibliography}
 
