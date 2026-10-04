@@ -148,7 +148,7 @@ From 187,780 candidate windows, 141,100 (75.1\%) survive: 36,395 are rejected fo
 n_{\text{eff}} \approx \frac{135{,}000\ \text{slots}}{48\ \text{steps}} \approx 2{,}800,
 \label{eq:neff}
 \end{equation}
-a coarse approximation rather than an autocorrelation-based estimate.
+a coarse approximation. An autocorrelation-based estimate~\cite{refBH}, using the mean integrated autocorrelation time of 53.6 five-minute steps across subjects, gives $n_{\text{eff}} \approx 2{,}500$--$3{,}100$, consistent with Eq.~\eqref{eq:neff}.
 
 \subsection{System Overview}
 
@@ -390,7 +390,7 @@ For an impulse dose $D$, insulin on board is
 S_1 + S_2 = D\,e^{-t/t_{\max,I}}\left(1 + \frac{t}{t_{\max,I}}\right),
 \label{eq:8}
 \end{equation}
-which starts at $D$ and decreases monotonically. Carbohydrate absorption follows compartmental meal models used in T1D simulation~[\hyperref[ref35label]{43}-\hyperref[ref37label]{45}] and is represented by stomach and gut states, as given in Eqs.~\eqref{eq:9}--\eqref{eq:11}:
+which starts at $D$ and decreases monotonically. Carbohydrate absorption follows compartmental meal models used in T1D simulation~[\hyperref[ref35label]{44}-\hyperref[ref37label]{46}] and is represented by stomach and gut states, as given in Eqs.~\eqref{eq:9}--\eqref{eq:11}:
 \begin{align}
 \dot{Q}_{\text{sto}} &= -k_{\text{gri}} Q_{\text{sto}} + u_{\text{carb}}(t), \label{eq:9}\\
 \dot{Q}_{\text{gut}} &= k_{\text{gri}} Q_{\text{sto}} - k_{\text{abs}} Q_{\text{gut}}, \label{eq:10}\\
@@ -442,13 +442,13 @@ where $\rho_q(u) = u(q - \mathbb{1}_{u<0})$. Physics residuals are evaluated at 
 \label{eq:17}
 \end{equation}
 
-Closed-form state updates replace a memory-intensive differentiable ODE solver. Adaptive loss weighting was motivated by work on gradient imbalance and uncertainty-based multi-objective learning~[\hyperref[ref41label]{49}-\hyperref[ref42label]{50}]. The selected A7 configuration applies physics from epoch one; a data-first curriculum was rejected because validation optima repeatedly occurred before the curriculum became selectable.
+Closed-form state updates replace a memory-intensive differentiable ODE solver. Adaptive loss weighting was motivated by work on gradient imbalance and uncertainty-based multi-objective learning~[\hyperref[ref41label]{50}-\hyperref[ref42label]{51}]. The selected A7 configuration applies physics from epoch one; a data-first curriculum was rejected because validation optima repeatedly occurred before the curriculum became selectable.
 
 \subsection{Evaluation and Statistical Analysis}
 
 The official temporal protocol uses each subject's earlier data for training. LOSO trains on 11 subjects and evaluates the held-out subject on the identical test windows. Metrics are computed per subject and summarized as mean $\pm$ SD\@. Persistence predicts $\hat{G}(t+h) = G(t)$. Skill is $1 - \text{RMSE}_{\text{model}}/\text{RMSE}_{\text{persistence}}$, computed from the cohort-mean RMSEs.
 
-Clinical evaluation includes Clarke and Parkes zones~[\hyperref[ref43label]{51}-\hyperref[ref45label]{53}], consensus CGM ranges~\cite{ref52}, coefficient-of-variation ratio, and Kovatchev low/high blood-glucose risk indices~[\hyperref[ref46label]{55}-\hyperref[ref47label]{56}], together with hypoglycemia sensitivity, specificity, precision, and quantile calibration. Paired model comparisons use the Wilcoxon signed-rank test~\cite{ref48} across 12 subjects with Holm multiplicity correction~\cite{ref49}; bootstrap intervals resample subjects, never overlapping windows. Test--retest reliability of $S_I$ is measured with one-way ICC(1)~\cite{ref50}, and concurrent validity uses Spearman rank correlation~\cite{ref51}.
+Clinical evaluation includes Clarke and Parkes zones~[\hyperref[ref43label]{52}-\hyperref[ref45label]{54}], consensus CGM ranges~\cite{ref52}, coefficient-of-variation ratio, and Kovatchev low/high blood-glucose risk indices~[\hyperref[ref46label]{56}-\hyperref[ref47label]{57}], together with hypoglycemia sensitivity, specificity, precision, and quantile calibration. Paired model comparisons use the Wilcoxon signed-rank test~\cite{ref48} across 12 subjects with Holm multiplicity correction~\cite{ref49}; bootstrap intervals resample subjects, never overlapping windows. Test--retest reliability of $S_I$ is measured with one-way ICC(1)~\cite{ref50}, and concurrent validity uses Spearman rank correlation~\cite{ref51}.
 
 \subsection{Preregistered Outcomes and Falsification Criteria}
 
@@ -484,11 +484,11 @@ Because IG shows an unresolved completeness violation, every interpretation is c
 Claim & Criterion fixed before test evaluation & Interpretation & Ref. \\
 \midrule
 Beats persistence & 30-minute MAE below persistence in at least 10 of 12 subjects & Requires broadly distributed improvement, not a pooled gain driven by a few subjects. & [\hyperref[ref30label]{38}-\hyperref[ref31label]{39}],~\cite{ref57} \\
-Field-competitive point accuracy & 30-minute MAE $\leq$ 13.5 mg/dL & A field-relative target, explicitly not a clinical acceptability threshold. &~\cite{ref31},~[\hyperref[ref43label]{51}-\hyperref[ref44label]{52}],~\cite{ref64} \\
-Physics improves accuracy & Physics arm beats A0 at 30 minutes and survives paired Wilcoxon testing with Holm correction & If unmet, physics is not credited with point-accuracy improvement. & [\hyperref[ref48label]{57}-\hyperref[ref49label]{58}] \\
+Field-competitive point accuracy & 30-minute MAE $\leq$ 13.5 mg/dL & A field-relative target, explicitly not a clinical acceptability threshold. &~\cite{ref31},~[\hyperref[ref43label]{52}-\hyperref[ref44label]{53}],~\cite{ref64} \\
+Physics improves accuracy & Physics arm beats A0 at 30 minutes and survives paired Wilcoxon testing with Holm correction & If unmet, physics is not credited with point-accuracy improvement. & [\hyperref[ref48label]{58}-\hyperref[ref49label]{59}] \\
 $S_I$ is subject-specific & Between-subject CV $>$ 10\% & Rejects a parameter head collapsed to one population value. &~\cite{ref1,ref32} \\
 $S_I$ is stable & ICC(1) $>$ 0.5 on disjoint within-subject blocks & Rejects a window-level nuisance variable that merely absorbs prediction error. &~\cite{ref50,ref76} \\
-$S_I$ is externally consistent & Spearman $\rho < 0$ versus total daily dose, with a subject-bootstrap 95\% CI excluding zero & Evaluated separately under personalized and LOSO protocols. &~\cite{ref51},~[\hyperref[ref77label]{66}-\hyperref[ref78label]{67}] \\
+$S_I$ is externally consistent & Spearman $\rho < 0$ versus total daily dose, with a subject-bootstrap 95\% CI excluding zero & Evaluated separately under personalized and LOSO protocols. &~\cite{ref51},~[\hyperref[ref77label]{67}-\hyperref[ref78label]{68}] \\
 \bottomrule
 \end{tabular}
 \end{table*}
@@ -708,11 +708,11 @@ Persistence & 16.87 $\pm$ 1.92 & 23.37 $\pm$ 2.85 & 28.22 $\pm$ 3.24 & 38.15 $\p
 Bergman ODE (population) & 29.70 $\pm$ 9.67 & 39.67 $\pm$ 12.67 & 43.71 $\pm$ 12.84 & 57.08 $\pm$ 16.10 & 52.79 $\pm$ 14.86 & 67.92 $\pm$ 18.06 & 58.91 $\pm$ 15.68 & 74.96 $\pm$ 18.80 \\
 Bergman ODE (per-subject NLS) & 25.80 $\pm$ 8.36 & 34.72 $\pm$ 10.45 & 38.09 $\pm$ 9.56 & 50.41 $\pm$ 11.78 & 46.46 $\pm$ 11.45 & 60.59 $\pm$ 13.88 & 52.48 $\pm$ 12.63 & 67.62 $\pm$ 14.93 \\
 AR(6) & 14.39 $\pm$ 1.52 & 20.11 $\pm$ 2.65 & 25.52 $\pm$ 2.90 & 33.88 $\pm$ 3.90 & 33.91 $\pm$ 3.84 & 44.02 $\pm$ 4.88 & 39.81 $\pm$ 4.33 & 50.98 $\pm$ 5.48 \\
-ARX(6) & 13.97 $\pm$ 1.51 & 19.61 $\pm$ 2.76 & 24.48 $\pm$ 2.86 & 32.67 $\pm$ 3.98 & 32.41 $\pm$ 3.79 & 42.23 $\pm$ 4.88 & 38.00 $\pm$ 4.29 & 48.87 $\pm$ 5.47 \\
+ARX(6) & 13.97 $\pm$ 1.51 & 19.61 $\pm$ 2.76 & 24.48 $\pm$ 2.86 & 32.67 $\pm$ 3.98 & 32.24 $\pm$ 3.47 & 41.82 $\pm$ 4.47 & 37.68 $\pm$ 3.69 & 48.00 $\pm$ 4.77 \\
 LSTM (non-mechanistic) & 15.41 $\pm$ 2.16 & 21.46 $\pm$ 2.83 & 26.08 $\pm$ 3.87 & 35.24 $\pm$ 4.56 & 33.59 $\pm$ 4.77 & 44.97 $\pm$ 5.76 & 38.81 $\pm$ 5.30 & 51.54 $\pm$ 6.63 \\
 Transformer ($A0_{\text{no-mech}}$) & 14.96 $\pm$ 1.82 & 21.08 $\pm$ 2.55 & 26.06 $\pm$ 3.15 & 35.56 $\pm$ 4.15 & 34.46 $\pm$ 3.81 & 46.08 $\pm$ 5.11 & 40.06 $\pm$ 4.09 & 53.03 $\pm$ 5.63 \\
 Transformer (all features, A0) & 13.51 $\pm$ 1.63 & 19.38 $\pm$ 2.41 & 22.82 $\pm$ 2.88 & 31.61 $\pm$ 3.71 & 29.74 $\pm$ 3.74 & 40.32 $\pm$ 4.71 & 34.93 $\pm$ 4.20 & 46.70 $\pm$ 5.24 \\
-\textbf{Hybrid physics-guided (A7)} & \textbf{13.25 $\pm$ 1.69} & \textbf{19.16 $\pm$ 2.52} & \textbf{22.29 $\pm$ 2.93} & \textbf{31.13 $\pm$ 3.87} & \textbf{28.77 $\pm$ 3.75} & \textbf{39.46 $\pm$ 4.88} & \textbf{33.38 $\pm$ 4.21} & \textbf{45.14 $\pm$ 5.43} \\
+\textbf{Hybrid physics-guided (A7)} & \textbf{13.25 $\pm$ 1.69} & \textbf{19.06 $\pm$ 2.51} & \textbf{22.29 $\pm$ 2.93} & \textbf{30.89 $\pm$ 3.89} & \textbf{28.77 $\pm$ 3.75} & \textbf{39.04 $\pm$ 4.83} & \textbf{33.38 $\pm$ 4.21} & \textbf{44.78 $\pm$ 5.46} \\
 \bottomrule
 \end{tabular}
 \end{table*}
@@ -1287,7 +1287,7 @@ Attribution concentrates in the most recent input positions, supporting attentio
 
 \subsection{Comparison With Published Work}
 
-At 30 minutes, the current work is mid-field relative to the 2020 challenge literature~\cite{ref64}, [\hyperref[ref60label]{70}-\hyperref[ref63label]{73}] (Table~\ref{tab:published}): on the matched 2020 cohort (subjects 540/544/552/567/584/596, the six subjects on which the challenge entries were scored), RMSE is 18.74 and MAE is 13.24~mg/dL. Further 2020 entries report RMSE@30 of 18.34 and 19.60~mg/dL~[\hyperref[ref65label]{74}-\hyperref[ref70label]{75}]. At 60 minutes, RMSE (31.16) is essentially tied with the best entry (31.10), and MAE (22.55) is lower than every entry except one whose MAE-to-RMSE ratio is far outside the range of the other entries~\cite{ref60}; differences in window eligibility, missing-data handling, external pretraining, and best-configuration reporting prevent a state-of-the-art claim. Across all 12 subjects, the only published comparison is GARNN~\cite{ref75} (18.97/13.34~mg/dL at 30 minutes), against which the all-subject result (18.84/13.08) should be read as a tie. The defensible advances are calibrated hypoglycemia detection, explicit personalized-versus-LOSO decomposition, preregistered validation of a physiological parameter, and a quantified account of the benefits and costs of Bergman constraints. The all-12-subject official figures reported throughout the Results section (e.g., 18.84/13.08 at 30 minutes) differ slightly from the 2020-cohort figures in Tables~\ref{tab:landscape} and~\ref{tab:published}; both are correct, answer different comparability questions, and should not be averaged together.
+At 30 minutes, the current work is mid-field relative to the 2020 challenge literature~\cite{ref64}, [\hyperref[ref60label]{71}-\hyperref[ref63label]{74}] (Table~\ref{tab:published}): on the matched 2020 cohort (subjects 540/544/552/567/584/596, the six subjects on which the challenge entries were scored), RMSE is 18.74 and MAE is 13.24~mg/dL. Further 2020 entries report RMSE@30 of 18.34 and 19.60~mg/dL~[\hyperref[ref65label]{75}-\hyperref[ref70label]{76}]. At 60 minutes, RMSE (31.16) is essentially tied with the best entry (31.10), and MAE (22.55) is lower than every entry except one whose MAE-to-RMSE ratio is far outside the range of the other entries~\cite{ref60}; differences in window eligibility, missing-data handling, external pretraining, and best-configuration reporting prevent a state-of-the-art claim. Across all 12 subjects, the only published comparison is GARNN~\cite{ref75} (18.97/13.34~mg/dL at 30 minutes), against which the all-subject result (18.84/13.08) should be read as a tie. The defensible advances are calibrated hypoglycemia detection, explicit personalized-versus-LOSO decomposition, preregistered validation of a physiological parameter, and a quantified account of the benefits and costs of Bergman constraints. The all-12-subject official figures reported throughout the Results section (e.g., 18.84/13.08 at 30 minutes) differ slightly from the 2020-cohort figures in Tables~\ref{tab:landscape} and~\ref{tab:published}; both are correct, answer different comparability questions, and should not be averaged together.
 
 \begin{table*}[t]
 \centering
@@ -1500,6 +1500,8 @@ $f$ & Carbohydrate bioavailability & 0.70--1.00 & dimensionless & 0.90 \\
 \bibitem{ref30}\label{ref30label} C. Marling and R. Bunescu, ``The OhioT1DM dataset for blood glucose level prediction,'' in \emph{Proc. 3rd Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2148, pp. 60--63, 2018.
 
 \bibitem{ref31}\label{ref31label} C. Marling and R. Bunescu, ``The OhioT1DM dataset for blood glucose level prediction: Update 2020,'' in \emph{Proc. 5th Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2675, pp. 71--74, 2020.
+
+\bibitem{refBH}\label{refBHlabel} G.~V. Bayley and J.~M. Hammersley, ``The effective number of independent observations in an autocorrelated time series,'' \emph{J. R. Stat. Soc. Suppl.}, vol.~8, no.~2, pp.~184--197, 1946.
 
 \bibitem{ref32}\label{ref32label} R.~N. Bergman, L.~S. Phillips, and C. Cobelli, ``Physiologic evaluation of factors controlling glucose tolerance in man,'' \emph{J. Clin. Invest.}, vol. 68, no. 6, pp. 1456--1467, 1981.
 

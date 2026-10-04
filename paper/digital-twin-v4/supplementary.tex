@@ -83,7 +83,7 @@ $\mathcal{L}_{\text{res}}$ & Mean squared, nondimensionalized Bergman residual o
 $\mathcal{L}_{\text{prior}}$ & Weak population-prior penalty that discourages physiologically implausible parameter drift. \\
 $\mathcal{L}_{\text{temporal}}$ & Within-subject penalty on disagreement between parameter estimates from adjacent windows. \\
 $w_{\text{phys}}$ & Physics weight, adaptive in the relevant ablation arms and optionally multiplied by a curriculum ramp. \\
-$s_i = \log\sigma_i^2$ & Stable log-variance parameterization used for learned multi-objective weighting~[50]. \\
+$s_i = \log\sigma_i^2$ & Stable log-variance parameterization used for learned multi-objective weighting~[51]. \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -102,17 +102,17 @@ RMSE & mg/dL & Root-mean-square error, emphasizing larger deviations. \\
 $R^2$ & -- & $1 - \text{SS}_{\text{res}}/\text{SS}_{\text{tot}}$. \\
 MARD & \% & Mean absolute relative difference, with reference glucose in the denominator. \\
 Skill & \% & $1 - \text{RMSE}_{\text{model}}/\text{RMSE}_{\text{persistence}}$. Positive values beat no-change prediction. \\
-TIR/TAR/TBR & \% & Time in, above, or below the consensus glucose range. The main in-range interval is 70--180 mg/dL~[54]. \\
+TIR/TAR/TBR & \% & Time in, above, or below the consensus glucose range. The main in-range interval is 70--180 mg/dL~[55]. \\
 CV ratio & -- & $\text{CV}_{\text{pred}}/\text{CV}_{\text{actual}}$; values below one quantify excursion compression. \\
 LBGI/HBGI & -- & Low/high blood-glucose risk indices after the Kovatchev symmetric risk transform. \\
 Coverage & -- & Fraction of observations below a stated predictive quantile; calibration requires observed and nominal coverage to agree. \\
 Hypo sensitivity & -- & Fraction of actual $G<70$ mg/dL events detected by the forecast or alarm. \\
 Precision & -- & Fraction of hypoglycemia alarms corresponding to actual events. \\
-ICC(1) & -- & One-way, single-measure intraclass correlation used for $S_I$ test--retest stability~[59]. \\
-$\rho$ & -- & Spearman rank correlation used for monotonic association with insulin dose~[60]. \\
+ICC(1) & -- & One-way, single-measure intraclass correlation used for $S_I$ test--retest stability~[60]. \\
+$\rho$ & -- & Spearman rank correlation used for monotonic association with insulin dose~[61]. \\
 $\text{IG}_i$ & mg/dL & Integrated-gradient attribution of feature $i$ relative to the standardized-mean baseline. \\
 Clarke/Parkes EGA & zone & Point-wise clinical error grids originally designed for glucose-measurement error. \\
-PRED-EGA & category & Prediction-specific error grid combining level and rate information~[69]; reported in the Results of the main text. \\
+PRED-EGA & category & Prediction-specific error grid combining level and rate information~[70]; reported in the Results of the main text. \\
 \bottomrule
 \end{tabular}
 \end{table}
