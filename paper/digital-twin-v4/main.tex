@@ -41,7 +41,7 @@ sammyyakk@gmail.com; goswami.dhritid@gmail.com; yugnanda\_malhotra@yahoo.com
 
 \textbf{Methods:} A gap-aware pipeline was developed using the OhioT1DM dataset (12 subjects), which admitted only windows whose targets were real CGM readings exactly 30, 60, 90, and 120~min ahead (26,498 test windows). The model couples a compact Transformer encoder to a differentiable Bergman minimal model, extended with subcutaneous insulin and gut absorption states, through a physics residual and a mechanistic prior, with patient-specific parameter estimation and a non-crossing quantile head for uncertainty. Performance was assessed under personalized (temporal) and leave-one-subject-out (LOSO) protocols using RMSE, skill over persistence, Clarke/Parkes error grids, hypoglycemia-alarm sensitivity, and feature attribution. A pre-specified ablation with subject-level Wilcoxon tests and Holm correction tested the contribution of physics, and pre-specified checks tested the validity of insulin sensitivity ($S_I$).
 
-\textbf{Results:} Personalized RMSE was 18.84, 30.52, 38.60, and 44.46~mg/dL at 30, 60, 90, and 120~min (19.4--21.2\% skill over persistence); at 30~min all 12 subjects improved, and under LOSO all 12 still beat persistence by MAE. Physics did not improve accuracy in the pre-specified single-seed test (30-min MAE 13.25 vs.\ 13.51~mg/dL; Holm $p=0.105$), but across five seeds it reduced MAE at every horizon, by 0.51~mg/dL at 30~min and 2.38~mg/dL at 120~min (Holm $p=0.002$). It also yielded an insulin-sensitivity estimate ($S_I$) that varied between subjects (CV 35.8\%), was stable within them (ICC 0.89), and fell with total daily insulin ($\rho=-0.84$), though not under LOSO\@. The 5-min glucose rate of change was the top predictor under both attribution methods. At 30~min, the median forecast detected 55.1\% of hypoglycemic readings; a 10th-percentile alarm raised this to 91.8\% at a precision of 0.347.
+\textbf{Results:} Personalized RMSE was 18.84, 30.52, 38.60, and 44.46~mg/dL at 30, 60, 90, and 120~min (19.4--21.2\% skill over persistence); at 30~min all 12 subjects improved, and under LOSO all 12 still beat persistence by MAE. Physics did not improve accuracy in the pre-specified single-seed test (30-min MAE 13.25 vs.\ 13.51~mg/dL; Holm $p=0.105$), but in a post hoc five-seed replication it reduced MAE at every horizon, by 0.51~mg/dL at 30~min and 2.38~mg/dL at 120~min (Holm $p=0.002$). It also yielded an insulin-sensitivity estimate ($S_I$) that varied between subjects (CV 35.8\%), was stable within them (ICC 0.89), and fell with total daily insulin ($\rho=-0.84$), though not under LOSO\@. The 5-min glucose rate of change was the top predictor under both attribution methods. At 30~min, the median forecast detected 55.1\% of hypoglycemic readings; a 10th-percentile alarm raised this to 91.8\% at a precision of 0.347.
 
 \textbf{Conclusion:} Physiological structure yielded a stable insulin-sensitivity estimate, consistent with insulin dose under personalized evaluation, and small but consistent accuracy gains. Calibrated predictive tails, not error-grid scores, determine hypoglycemia detection.
 \end{abstract}
@@ -143,12 +143,12 @@ OhioT1DM contains 12 subjects in the 2018 and 2020 cohorts and 166,443 CGM obser
 
 All streams are aligned to an exact five-minute grid without dropping rows. Missing CGM runs of at most ten minutes may be interpolated for input construction, but interpolated values are never accepted as targets. A sequence is emitted only if its 24-step (two-hour) input satisfies the coverage rule and every target is a real observation exactly $h \in \{30, 60, 90, 120\}$ minutes after the anchor. The scaler is fit only on training-fold slots, with each physical slot counted once rather than once per overlapping window.
 
-From 187,780 candidate windows, 141,100 (75.1\%) survive: 36,395 are rejected for incomplete inputs and 10,285 for unavailable real-valued targets. Both evaluation protocols use the same 26,498 test windows. Because consecutive windows share 23 of 24 input steps, the effective information content is approximately
+From 187,780 candidate windows, 141,100 (75.1\%) survive: 36,395 are rejected for incomplete inputs and 10,285 for unavailable real-valued targets. Both evaluation protocols use the same 26,498 test windows. Consecutive windows share 23 of their 24 input steps, so the raw window count overstates the information available. Each window, together with its 120-min target, spans 48 five-minute steps (24 input plus 24 forecast), so windows share observed data unless they are at least 48 steps apart. Dividing the approximately 135,000 retained five-minute slots by this block length gives
 \begin{equation}
 n_{\text{eff}} \approx \frac{135{,}000\ \text{slots}}{48\ \text{steps}} \approx 2{,}800,
 \label{eq:neff}
 \end{equation}
-not the raw window count.
+a coarse approximation rather than an autocorrelation-based estimate.
 
 \subsection{System Overview}
 
@@ -785,7 +785,7 @@ At 30 minutes, LOSO remains better than persistence in all 12 subjects by MAE (1
 
 
 \subsection{Physics Ablations}
-In the pre-specified single-seed ablation, no physics configuration significantly outperformed the no-physics A0 baseline after Holm correction (Table~\ref{tab:ablation}; Fig.~\ref{fig:ablationfig}). A7 was nominally best and improved 9 of 12 subjects, but its corrected $p = 0.105$, so the pre-specified criterion was not met. A subsequent 5-seed replication of A0 and A7 (Section~\ref{sec:multiseed_replication}) found that, on seed-averaged per-subject errors, A7 has lower MAE at every horizon, by 0.51~mg/dL at 30~min and 2.38~mg/dL at 120~min (Holm $p = 0.002$ at each horizon). Per-patient parameters remain accuracy-neutral: A3 and population-fixed A4 differ by 0.07--0.23~mg/dL at 30/60~min, widening to 0.76~mg/dL at 120~min. In contrast with earlier physiology-informed OhioT1DM studies that primarily reported forecast accuracy~\cite{ref58,ref59}, this ablation separates parameter estimation from predictive gain.
+In the pre-specified single-seed ablation, no physics configuration significantly outperformed the no-physics A0 baseline after Holm correction (Table~\ref{tab:ablation}; Fig.~\ref{fig:ablationfig}). A7 was nominally best and improved 9 of 12 subjects, but its corrected $p = 0.105$, so the pre-specified criterion was not met. A post hoc 5-seed replication of A0 and A7, not part of the pre-specified plan (Section~\ref{sec:multiseed_replication}) found that, on seed-averaged per-subject errors, A7 has lower MAE at every horizon, by 0.51~mg/dL at 30~min and 2.38~mg/dL at 120~min (Holm $p = 0.002$ at each horizon). Per-patient parameters remain accuracy-neutral: A3 and population-fixed A4 differ by 0.07--0.23~mg/dL at 30/60~min, widening to 0.76~mg/dL at 120~min. In contrast with earlier physiology-informed OhioT1DM studies that primarily reported forecast accuracy~\cite{ref58,ref59}, this ablation separates parameter estimation from predictive gain.
 
 Beyond this modest accuracy gain, the value of physics lies in access to a stable physiological parameter and informative mechanistic states.
 
@@ -799,7 +799,7 @@ Beyond this modest accuracy gain, the value of physics lies in access to a stabl
 \begin{table*}[t]
 \centering
 
-\caption{Ablation matrix: official protocol, all 12 subjects, one training run per arm (seed 42). MAE at all horizons; Clarke A and hypoglycemia metrics at 30 min; hypo bias is the mean error for glucose below 70 mg/dL. Hypoglycemia values differ from Table~\ref{tab:hypo_event}, whose A0 and A7 rows come from separately trained models with quantile heads (Section~\ref{sec:quantile_a0_a7}).}
+\caption{Ablation matrix: official protocol, all 12 subjects, one training run per arm (seed 42). MAE at all horizons; Clarke A and hypoglycemia metrics at 30 min; hypo bias is the mean error for glucose below 70 mg/dL. Hypoglycemia values differ from Table~\ref{tab:hypo_event}, whose A7 row is the final model of Table~\ref{tab:official} and whose A0 row was retrained with the same quantile head (Section~\ref{sec:quantile_a0_a7}).}
 \label{tab:ablation}
 \footnotesize
 \setlength{\tabcolsep}{4.5pt}
@@ -867,11 +867,11 @@ A7 & Hybrid, full physics from epoch 1 & \textbf{13.25} & \textbf{22.29} & \text
 \subsubsection{Multi-Seed Replication and Statistical Significance}
 \label{sec:multiseed_replication}
 
-A0 and A7 were each retrained from scratch with five seeds $\{42, 101, 202, 303, 404\}$ under the official protocol. We report the mean and SD of MAE and RMSE across seeds, and paired two-sided Wilcoxon signed-rank tests on seed-averaged per-subject errors with Holm--Bonferroni correction (Table~\ref{tab:multiseed}).
+As a post hoc check of seed sensitivity, A0 and A7 were each retrained from scratch with five seeds $\{42, 101, 202, 303, 404\}$ under the official protocol. We report the mean and SD of MAE and RMSE across seeds, and paired two-sided Wilcoxon signed-rank tests on seed-averaged per-subject errors with Holm--Bonferroni correction (Table~\ref{tab:multiseed}).
 
 \begin{table*}[t]
 \centering
-\caption{Multi-seed replication (5 seeds: 42, 101, 202, 303, 404) comparing A0 (no physics) and A7 (hybrid physics-guided), with paired Wilcoxon signed-rank tests on seed-averaged per-subject errors. Values are means over the five seeds and therefore differ from the single-seed (seed 42) values in Tables~\ref{tab:baselines_identical} and~\ref{tab:ablation}.}
+\caption{Post hoc multi-seed replication (5 seeds: 42, 101, 202, 303, 404) comparing A0 (no physics) and A7 (hybrid physics-guided), with paired Wilcoxon signed-rank tests on seed-averaged per-subject errors. Values are means over the five seeds and therefore differ from the single-seed (seed 42) values in Tables~\ref{tab:baselines_identical} and~\ref{tab:ablation}.}
 \label{tab:multiseed}
 \footnotesize
 \setlength{\tabcolsep}{4.5pt}
@@ -895,7 +895,7 @@ A7 significantly outperformed A0 at every horizon ($p_{\text{Holm}} = 0.00195$ f
 
 Clinical agreement remains high across horizons: Clarke A+B decreases from 99.0\% at 30 minutes to 94.3\% at 120 minutes (Fig.~\ref{fig:clarke}). The Parkes error grid, pooled across test windows, shows the same pattern: zone A+B falls from 99.8\% at 30 minutes to 95.9\% at 120 minutes, and zone E is 0\% at every horizon.
 
-Because Clarke and Parkes grids were designed for point-in-time sensor measurements rather than forecasts, we also applied Prediction Error Grid Analysis (PRED-EGA)~\cite{ref53}, which classifies predictions as Accurate, Benign, or Erroneous separately in hypoglycemia ($\le 70$~mg/dL), euglycemia (70--180~mg/dL), and hyperglycemia ($> 180$~mg/dL) (Table~\ref{tab:predega}). Clinically acceptable predictions (Accurate + Benign) exceeded 99.4\% at every horizon, and Erroneous predictions stayed below 0.6\% even at 120~min. In hyperglycemia, 96.2\% of predictions were Accurate at 30~min and 86.1\% at 60~min; in hypoglycemia, Erroneous predictions were 0.00\% at 30~min and 0.13\% at 60~min.
+Because Clarke and Parkes grids were designed for point-in-time sensor measurements rather than forecasts, we also applied Prediction Error Grid Analysis (PRED-EGA)~\cite{ref53}, which classifies predictions as Accurate, Benign, or Erroneous separately in hypoglycemia ($\le 70$~mg/dL, following the PRED-EGA definition), euglycemia (70--180~mg/dL), and hyperglycemia ($> 180$~mg/dL) (Table~\ref{tab:predega}). Clinically acceptable predictions (Accurate + Benign) exceeded 99.4\% at every horizon, and Erroneous predictions stayed below 0.6\% even at 120~min. In hyperglycemia, 96.2\% of predictions were Accurate at 30~min and 86.1\% at 60~min; in hypoglycemia, Erroneous predictions were 0.00\% at 30~min and 0.13\% at 60~min.
 
 \begin{table}[t]
 \centering
@@ -998,7 +998,7 @@ To test whether physics worsens hypoglycemia detection when both models have qua
 
 \subsubsection{Validation Threshold Selection and Operating Curves}
 \label{sec:validation_threshold_selection}
-To avoid test-set reuse, the alarm threshold was chosen on the validation split by maximizing the $F_2$ score, which weights sensitivity twice as heavily as precision. The selected threshold, $T^* = 84.0$~mg/dL ($F_2 = 0.771$), evaluated once on the test split, gave sensitivity 0.943, specificity 0.908, precision 0.451, and 2,261 false positives, compared with 0.918, 0.951, and 0.347 at the standard 70.0~mg/dL threshold. Sensitivity--precision curves for $q \in \{0.05, 0.10, 0.20\}$ (\texttt{data/sensitivity\_precision\_curves.csv}) show that the operating point can be adjusted along a continuous trade-off.
+To avoid test-set reuse, the alarm threshold was chosen on the validation split by maximizing the $F_2$ score, which weights sensitivity twice as heavily as precision. The selected threshold, $T^* = 84.0$~mg/dL ($F_2 = 0.771$), was evaluated once on the test split. With true hypoglycemia ($G < 70$~mg/dL) as the target, alarming at $\hat{G}_{0.10} < 84$~mg/dL gave sensitivity 0.988, specificity 0.868, precision 0.175, and 3,397 false positives, compared with 0.918, 0.951, and 0.347 (1,257 false positives) for the standard 70~mg/dL alarm. If the target is also redefined as $G < 84$~mg/dL, the same alarm gives sensitivity 0.943, specificity 0.908, and precision 0.451. The higher threshold therefore trades precision for sensitivity. Sensitivity--precision curves for $q \in \{0.05, 0.10, 0.20\}$ (\texttt{data/sensitivity\_precision\_curves.csv}) show that the operating point can be adjusted along a continuous trade-off.
 
 \begin{table*}[t]
 \centering
@@ -1162,7 +1162,7 @@ We tested whether the stability and dose correlation of $S_I$ could be artifacts
     \item \textbf{No temporal-consistency loss ($\lambda_{tc} = 0$):} Retrained without the penalty (\texttt{abl-A7-notc}), $S_I$ still passed all checks: ICC(1) = 0.645, CV = 22.2\%, all estimates within the Ward IDDM bounds, and $\rho = -0.804$ with total daily dose ($p = 0.0016$, 95\% CI [$-0.955, -0.451$]). Stability is therefore not produced solely by the penalty.
     \item \textbf{Partial correlation controlling for mean glucose:} Controlling for test-interval mean glucose, the $S_I$--TDD partial correlation was $r = -0.838$ (rank, $p = 0.0013$) and $r = -0.886$ (Pearson, $p = 0.0003$); controlling for whole-study mean glucose gave $r = -0.843$ ($p = 0.0011$) and $r = -0.875$ ($p = 0.0004$). Ambient glucose does not explain the relationship.
     \item \textbf{Independent minimal-model fit:} $S_I$ from the parameter head agreed with per-subject Bergman estimates obtained by nonlinear least squares/MAP (Spearman $\rho = 0.790$, $p = 0.0022$; Pearson $r = 0.831$, $p = 0.0008$), without iterative fitting at inference.
-    \item \textbf{Insulin-to-carbohydrate ratio:} For the six 2018 subjects with clinical ICR, the correlation with $S_I$ was Spearman $\rho = +0.371$ ($p = 0.469$) and Pearson $r = +0.079$ ($p = 0.881$); with $n = 6$, this check is underpowered.
+    \item \textbf{Insulin-to-carbohydrate ratio:} For the six 2018 subjects with clinical ICR (grams of carbohydrate per unit of insulin, so a positive correlation is expected), the correlation with $S_I$ was Spearman $\rho = +0.371$ ($p = 0.469$) and Pearson $r = +0.079$ ($p = 0.881$); with $n = 6$, this check is underpowered.
     \item \textbf{Learned trust gate $g$:} The gate on the Bergman prior, initialized at $g_0 \approx 0.10$, converged to 0.152 in the point forecaster (A7) and 0.128 in the quantile forecaster.
 \end{enumerate}
 
@@ -1327,7 +1327,7 @@ The ablation also exposes a structural limitation. Bergman's equilibrium at $G_b
 %=================================================================
 \section{Limitations and Future Work}
 
-The cohort contains only 12 subjects and approximately 2,800 effectively independent observations. The ablation screen used a single seed (42); only A0 and A7 were replicated over five seeds (Section~\ref{sec:multiseed_replication}). OhioT1DM has no clamp measurement of $S_I$, so validation is indirect; LOSO external validity fails. Subject 552 has only 59.7\% test CGM coverage, and subject 567 has no carbohydrate records in the test interval. Body weight is unavailable. The alarm operating point was selected on validation data without test-set reuse (Section~\ref{sec:validation_threshold_selection}), but lacks an elicited clinical cost ratio. No counterfactual intervention is validated, so the system is a physics-guided forecaster rather than a digital twin or treatment simulator.
+The cohort contains only 12 subjects and approximately 2,800 effectively independent observations. The ablation screen used a single seed (42); only A0 and A7 were replicated over five seeds, post hoc (Section~\ref{sec:multiseed_replication}). OhioT1DM has no clamp measurement of $S_I$, so validation is indirect; LOSO external validity fails. Subject 552 has only 59.7\% test CGM coverage, and subject 567 has no carbohydrate records in the test interval. Body weight is unavailable. The alarm operating point was selected on validation data without test-set reuse (Section~\ref{sec:validation_threshold_selection}), but lacks an elicited clinical cost ratio. No counterfactual intervention is validated, so the system is a physics-guided forecaster rather than a digital twin or treatment simulator.
 
 The parameter head estimates a ten-component physiological vector $\theta_p$ for each subject, rather than only $S_I$. Table~\ref{tab:params} lists its components: $p_1$, $p_2$, $p_3$, $n$, $V_G$, $V_I$, $t_{\max,I}$, $k_{\text{gri}}$, $k_{\text{abs}}$, and $f$.
 
@@ -1338,7 +1338,7 @@ Priority extensions are external validation on larger cohorts (e.g., Shanghai, D
 %=================================================================
 \section{Conclusion}
 
-An audited, hybrid physics-guided forecaster can outperform a validated persistence baseline by 19--21\% RMSE across 30--120-minute horizons. Physics improves point accuracy only modestly, and significantly only across five seeds. The strongest evidence is instead that physiology can provide stable patient-specific structure alongside this small accuracy gain, and that calibrated distributional forecasting can recover hypoglycemic events missed by an otherwise accurate median forecast. Horizon integrity, subject-level statistics, matched generalization protocols, and explicit safety trade-offs are prerequisites for credible glucose forecasting.
+An audited, hybrid physics-guided forecaster can outperform a validated persistence baseline by 19--21\% RMSE across 30--120-minute horizons. Physics improves point accuracy only modestly, and significantly only in a post hoc five-seed replication. The strongest evidence is instead that physiology can provide stable patient-specific structure alongside this small accuracy gain, and that calibrated distributional forecasting can recover hypoglycemic events missed by an otherwise accurate median forecast. Horizon integrity, subject-level statistics, matched generalization protocols, and explicit safety trade-offs are prerequisites for credible glucose forecasting.
 
 %=================================================================
 \appendices
