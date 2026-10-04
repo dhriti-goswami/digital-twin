@@ -62,7 +62,7 @@
    - Total physical 5-minute grid slots across the entire dataset is $188,908$ ($153,055$ train, $35,853$ test). Candidate windows are $187,780$, of which $141,100$ ($75.1\%$) survive data-integrity filtering. $188,908 \times 75.1\% \approx 141,800$ slots. Training grid slots spanning valid inputs count to $\approx 135,000$.
 
 3. **Autocorrelation Script & Reproducibility:**
-   - Script created and committed: [`scripts/compute_autocorrelation.py`](file:///home/sammyyakk/projects/digital-twin/scripts/compute_autocorrelation.py).
+   - Script created and committed: `scripts/compute_autocorrelation.py`.
    - It computes the empirical autocorrelation function $\rho(k)$ per subject up to $K=110$ lags (~9.2 hours), fits the exponential decay model $\rho(k) = \exp(-k/\tau_e)$, and integrates:
      $$\tau_{\text{int}} = 1 + 2 \sum_{k=1}^\infty \rho(k) = 1 + 2 \frac{e^{-1/\tau_e}}{1 - e^{-1/\tau_e}}$$
    - **Result across all 12 subjects:**

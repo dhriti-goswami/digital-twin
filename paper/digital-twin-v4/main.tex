@@ -690,7 +690,7 @@ Table~\ref{tab:baselines_identical} compares nine models on the same 26,498 test
     \item \textbf{Hybrid physics-guided, A7:} A0 plus the Bergman prior, learned residual correction, and parameter head.
 \end{enumerate}
 
-Mechanistic models alone performed worst: with population parameters the ODE drifted to a 30-min MAE of 29.70~mg/dL (58.91~mg/dL at 120~min), and per-subject fitting improved this only to 25.80~mg/dL (52.48~mg/dL at 120~min). Linear models were competitive: AR(6) beat persistence by 2.48~mg/dL at 30~min, and adding insulin and meal inputs (ARX) lowered MAE to 13.97~mg/dL. Adding mechanistic features to the Transformer reduced 30-min MAE by 1.45~mg/dL (14.96 to 13.51~mg/dL), and A7 had the lowest MAE at every horizon in this comparison (13.25~mg/dL at 30~min).
+Mechanistic models alone performed worst: with population parameters the ODE drifted to a 30-min MAE of 29.70~mg/dL (54.18~mg/dL at 120~min), and per-subject fitting improved this only to 25.80~mg/dL (48.43~mg/dL at 120~min). Linear models were competitive: AR(6) beat persistence by 2.48~mg/dL at 30~min, and adding insulin and meal inputs (ARX) lowered MAE to 13.97~mg/dL. Adding mechanistic features to the Transformer reduced 30-min MAE by 1.45~mg/dL (14.96 to 13.51~mg/dL), and A7 had the lowest MAE at every horizon in this comparison (13.25~mg/dL at 30~min).
 
 \begin{table*}[t]
 \centering
@@ -705,9 +705,9 @@ Mechanistic models alone performed worst: with population parameters the ODE dri
 Model & MAE & RMSE & MAE & RMSE & MAE & RMSE & MAE & RMSE \\
 \midrule
 Persistence & 16.87 $\pm$ 1.92 & 23.37 $\pm$ 2.85 & 28.22 $\pm$ 3.24 & 38.15 $\pm$ 4.58 & 36.55 $\pm$ 4.00 & 48.69 $\pm$ 5.58 & 42.90 $\pm$ 4.46 & 56.43 $\pm$ 6.21 \\
-Bergman ODE (population) & 29.70 $\pm$ 9.67 & 39.67 $\pm$ 12.67 & 43.71 $\pm$ 12.84 & 57.08 $\pm$ 16.10 & 52.79 $\pm$ 14.86 & 67.92 $\pm$ 18.06 & 58.91 $\pm$ 15.68 & 74.96 $\pm$ 18.80 \\
-Bergman ODE (per-subject NLS) & 25.80 $\pm$ 8.36 & 34.72 $\pm$ 10.45 & 38.09 $\pm$ 9.56 & 50.41 $\pm$ 11.78 & 46.46 $\pm$ 11.45 & 60.59 $\pm$ 13.88 & 52.48 $\pm$ 12.63 & 67.62 $\pm$ 14.93 \\
-AR(6) & 14.39 $\pm$ 1.52 & 20.11 $\pm$ 2.65 & 25.52 $\pm$ 2.90 & 33.88 $\pm$ 3.90 & 33.91 $\pm$ 3.84 & 44.02 $\pm$ 4.88 & 39.81 $\pm$ 4.33 & 50.98 $\pm$ 5.48 \\
+Bergman ODE (population) & 29.70 $\pm$ 9.67 & 39.67 $\pm$ 12.67 & 43.71 $\pm$ 12.84 & 57.08 $\pm$ 16.10 & 50.72 $\pm$ 13.66 & 65.26 $\pm$ 16.79 & 54.18 $\pm$ 13.78 & 69.20 $\pm$ 16.77 \\
+Bergman ODE (per-subject NLS) & 25.80 $\pm$ 8.36 & 34.72 $\pm$ 10.45 & 38.09 $\pm$ 9.56 & 50.41 $\pm$ 11.78 & 44.70 $\pm$ 8.99 & 58.47 $\pm$ 11.01 & 48.43 $\pm$ 8.35 & 63.03 $\pm$ 10.29 \\
+AR(6) & 14.39 $\pm$ 1.52 & 20.11 $\pm$ 2.65 & 25.52 $\pm$ 2.90 & 33.88 $\pm$ 3.90 & 33.18 $\pm$ 3.66 & 42.92 $\pm$ 4.62 & 38.30 $\pm$ 3.90 & 48.64 $\pm$ 4.92 \\
 ARX(6) & 13.97 $\pm$ 1.51 & 19.61 $\pm$ 2.76 & 24.48 $\pm$ 2.86 & 32.67 $\pm$ 3.98 & 32.24 $\pm$ 3.47 & 41.82 $\pm$ 4.47 & 37.68 $\pm$ 3.69 & 48.00 $\pm$ 4.77 \\
 LSTM (non-mechanistic) & 15.41 $\pm$ 2.16 & 21.46 $\pm$ 2.83 & 26.08 $\pm$ 3.87 & 35.24 $\pm$ 4.56 & 33.59 $\pm$ 4.77 & 44.97 $\pm$ 5.76 & 38.81 $\pm$ 5.30 & 51.54 $\pm$ 6.63 \\
 Transformer ($A0_{\text{no-mech}}$) & 14.96 $\pm$ 1.82 & 21.08 $\pm$ 2.55 & 26.06 $\pm$ 3.15 & 35.56 $\pm$ 4.15 & 34.46 $\pm$ 3.81 & 46.08 $\pm$ 5.11 & 40.06 $\pm$ 4.09 & 53.03 $\pm$ 5.63 \\
