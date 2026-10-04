@@ -1,8 +1,8 @@
 model,horizon_min,mae_mean,mae_sd,rmse_mean,rmse_sd
-Persistence,30,16.87,1.92,23.37,2.87
-Persistence,60,28.22,3.24,38.15,4.39
-Persistence,90,36.55,4.0,48.69,5.56
-Persistence,120,42.9,4.46,56.43,6.13
+Persistence,30,16.87,1.92,23.37,2.85
+Persistence,60,28.22,3.24,38.15,4.58
+Persistence,90,36.55,4.0,48.69,5.58
+Persistence,120,42.9,4.46,56.43,6.21
 Bergman ODE (pop.),30,29.7,9.67,39.67,12.67
 Bergman ODE (pop.),60,43.71,12.84,57.08,16.1
 Bergman ODE (pop.),90,52.79,14.86,67.92,18.06
