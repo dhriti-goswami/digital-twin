@@ -21,8 +21,4 @@
 6. ICR item now states g/U, so a positive correlation is expected (your item 13).
 7. Eq. (1) now explains 48 = 24 input + 24 forecast steps and calls n_eff a coarse approximation.
 
-## Review requests removed from the checklist (do, or give a reason for the response letter)
-8. Concern 11: PatchTST or TFT baseline.
-9. Concern 13: Zenodo DOI for the code.
-10. Table IV: per-subject skill +/- SD (no data in data/).
-11. Sec. II-A: citations of published OhioT1DM studies showing the integrity pitfalls (optional).
+
