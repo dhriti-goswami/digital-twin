@@ -1,0 +1,11 @@
+Check / Analysis,Value,Criterion,Result
+Lambda_tc = 0.0: Between-subject CV,22.2%,> 10%,Pass (variation preserved)
+Lambda_tc = 0.0: Test-retest ICC(1),0.645,> 0.5,Pass (stability preserved)
+Lambda_tc = 0.0: Spearman rho vs TDD,-0.804 (p=0.0016),"< 0, CI excludes 0","Pass (95% CI [-0.955, -0.451])"
+"Partial rank corr r(S_I, TDD | mean glucose)",-0.838 (p=0.0013),"< 0, p < 0.01",Robust (unconfounded by glucose)
+"Partial Pearson r(S_I, TDD | mean glucose)",-0.886 (p=0.0003),"< 0, p < 0.01",Robust (unconfounded by glucose)
+Agreement with NLS/MAP Bergman fit (rho),+0.790 (p=0.0022),"> 0, p < 0.01",Validates ODE equivalence
+Agreement with NLS/MAP Bergman fit (r),+0.831 (p=0.0008),"> 0, p < 0.01",Validates ODE equivalence
+"Carb ratio (ICR) correlation (n=6, exploratory)",+0.371 (p=0.469),Exploratory,Underpowered (n=6)
+Learned ODE trust gate g (A7 Point Forecaster),15.2% (g_0 = 10%),Reported,84.8% weight on residual
+Learned ODE trust gate g (A7 Quantile Forecaster),12.8% (g_0 = 10%),Reported,87.2% weight on residual
