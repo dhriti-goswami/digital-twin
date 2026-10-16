@@ -99,6 +99,21 @@ def main():
     print(f"  3) Retained physical slots (N ~ 135,000):  n_eff = {n_eff_slots:.1f} (~{round(n_eff_slots):,})")
     print(f"  -> Range of effective independent observations: n_eff in [{round(n_eff_slots):,}, {round(n_eff_raw):,}] (2,517 - 3,105)")
 
+    # 3b. Test-set-only effective sample size (the cohort-wide n_eff above describes
+    # the whole corpus used for Eq. (neff), NOT the 26,498-window test set that the
+    # hypoglycemia analysis (56 events) and PRED-EGA/calibration tables are computed on).
+    n_test_windows = 26498
+    block_steps = 48  # 24 input + 24 forecast steps per window (Sec. II-B)
+    n_eff_test_naive = n_test_windows / block_steps
+    n_eff_test_autocorr = n_test_windows / mean_tau_int
+
+    print("\nTest-Set-Only Effective Sample Size (26,498 test windows, NOT the full cohort):")
+    print(f"  Naive (windows / {block_steps}-step block length): n_eff_test = {n_eff_test_naive:.1f} (~{round(n_eff_test_naive):,})")
+    print(f"  Autocorrelation-adjusted (windows / tau_int={mean_tau_int:.2f}): n_eff_test = {n_eff_test_autocorr:.1f} (~{round(n_eff_test_autocorr):,})")
+    print("  NOTE: The ~2,800 figure in Sec. II-B / Limitations describes the whole cohort")
+    print("        (135,000 retained slots), not the test-set accounting the hypoglycemia")
+    print("        analysis (56 events) rests on. Use n_eff_test above for that context.")
+
     # 4. Save results table
     out_path = Path("results/tables/autocorrelation_neff.csv")
     out_path.parent.mkdir(parents=True, exist_ok=True)
