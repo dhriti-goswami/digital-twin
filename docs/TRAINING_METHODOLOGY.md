@@ -1,5 +1,12 @@
 # Glucose Prediction Model: Complete Training Methodology
 
+> **Legacy document.** Written for an earlier training configuration (states
+> `early_stopping_patience: 15` and a 30-min MAE of 5.53 mg/dL); these figures
+> predate the current official runs and do not match the numbers reported in
+> the paper. For the current, paper-accurate methodology and results, see
+> `paper/digital-twin-v5/main.tex` and `paper/digital-twin-v5/CHANGES.md`.
+> Kept for historical/background reading only — do not cite its numbers.
+
 A comprehensive technical reference for the physics-informed deep learning system for blood glucose prediction in Type 1 and Type 2 Diabetes management.
 
 ---
