@@ -55,8 +55,9 @@ def _write_manifest(config: Config, out_dir: Path, notes: dict[str, object]) -> 
         data_paths=data_paths,
         notes=notes,
     )
-    manifest.write(out_dir / "manifest.json")
-    config.to_yaml(out_dir / "resolved_config.yaml")
+    stage = notes.get("stage", "run")
+    manifest.write(out_dir / f"manifest_{stage}.json")
+    config.to_yaml(out_dir / f"resolved_config_{stage}.yaml")
 
 
 # --------------------------------------------------------------------------- #
