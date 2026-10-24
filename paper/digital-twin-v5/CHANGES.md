@@ -161,3 +161,113 @@ Nothing was rerun or estimated. The paper compiles with no errors and no overful
     - [11] Wang et al. (DDCLS 2025): paywalled; dataset unknown. Check via college IEEE access; add a row if it reports
       official-split OhioT1DM results, otherwise add a footnote saying why it is omitted.
 11. **Response letter.** Explain the points where the reviewer's premise was not quite right: Clarke A (flag 3) and A3/A4 (flag 8).
+
+---
+
+## Part 3 — Round 2 follow-up (after `SAMYAK_ANSWERS_ROUND2.md`, commit `c574437`, 17 Oct 2026)
+
+### Applied in `main.tex`
+- **CRPS (S-2).** Table X CRPS column 9.74 / 16.18 / 20.85 / 24.32 → **8.43 / 13.99 / 18.02 / 21.01** mg/dL.
+  Sec. III-G4 sentence now gives the method: twice the trapezoidal-rule integral of the pinball loss over
+  τ ∈ {0, 0.1, 0.5, 0.9, 1}, loss zero at τ = 0 and 1, i.e. 0.5·pinball_0.1 + 0.8·pinball_0.5 + 0.5·pinball_0.9.
+  Source: `results/tables/calibration_by_horizon.csv`. Checked by hand: 0.5·2.976 + 0.8·6.532 + 0.5·3.441 = 8.434.
+- Paper still compiles with no errors or overfull lines, 17 pages, appendix still starts on page 15.
+
+### Not applied (see `TODO_ROUND3.md`)
+- **S-4 (Tables V and VI).** The harmonized values would put across-seed SDs in a table captioned "SD across
+  subjects", make Tables V and VI disagree on A0/A7 MAE, and leave Table VI's hypoglycemia column mixing
+  quantile-head values (A0, A7) with old unreproducible values (A1–A4).
+- **S-1 (early stopping).** Samyak's diagnosis (selection starts at epoch 26, nothing selected) assumes the
+  default curriculum. The final run used the A7 configuration (`physics_ramp = 1.0` at epoch 1 in
+  `training_history.csv`), so selection was active from epoch 1. The saved checkpoints must be checked
+  before deciding on a rerun.
+- **S-3** needed no paper change.
+
+## Part 4 — References (20 Oct 2026, from the PDFs of [8] and [68])
+- **Ref [8] (Cichosz et al.):** print year confirmed as 2026, vol. 20, no. 3, pp. 836–847 (Aalborg University
+  accepted-manuscript record). No change needed.
+- **Ref [68] (Gu, Dang & Prioleau, EMBC 2020):** Table I gets a new first row in the non-physics group:
+  "Neural physiological encoder + LSTM", RMSE@30 17.80, other columns not reported. Source: Table V of their
+  paper (OhioT1DM subjects 559–591, i.e. the 2018 cohort, official split). The footnote now lists [35] and [68]
+  as the 2018-cohort exceptions.
+- **Sec. III-E wording:** "earlier physiology-informed OhioT1DM studies [35], [68]" → "earlier physiology-based [35]
+  and physiology-inspired [68] OhioT1DM studies", because [68] uses no physiological equations.
+- Still 17 pages, no errors or overfull lines, appendix on page 15.
+- **Still open:** ref [11] (Wang et al., DDCLS 2025).
+
+## Part 5 — Ref [11] removed and citation numbers fixed (20 Oct 2026)
+- **Ref [11] (Wang, Zhang & Song, DDCLS 2025) removed.** Full text not available to verify what the paper says
+  about it. Removed its one citation, the Sec. I-B sentence "Bergman-constrained PINN models tied the network
+  explicitly to the Bergman minimal model, ... dataset-specific [11]", and its reference entry. The Sec. I
+  sentence "validation has typically remained simulator-only or narrowly dataset-specific [10]–[11]" now reads
+  "some of these models were validated only in simulation [10]". The paper now has 74 references; everything
+  after the old [11] moves down by one (old [68] Gu et al. is now [67]).
+- **Hard-coded citation numbers fixed (existing bug since v4).** 33 citations in the paper are written as
+  fixed numbers (`\hyperref[...]{N}`) rather than `\cite`, so they do not renumber automatically. When the
+  preregistration reference was removed in v4, 17 of them were left one too high: for example the meal-model
+  sentence printed [44]–[46] for references 43–45, and the 2020 challenge comparison printed [70]–[73] for
+  69–72. All 33 now match the reference list (checked by script).
+- Still 17 pages, no errors, overfull lines or undefined references; appendix on page 15.
+
+## Part 6 — Table I cohort column (20 Oct 2026)
+- **New "Cohort" column** in Table I: 2018 for [34] Bertachi and [67] Gu, 2020 for all other studies.
+- **New rows** so each study has a same-cohort comparison: "Current Work (same model)" on the 2018 cohort
+  (RMSE/MAE 18.93/12.92, 29.89/21.42, 37.69/27.70, 43.53/32.44 at 30/60/90/120 min) and persistence on the
+  2018 cohort (22.52/16.28, 36.19/26.92, 46.22/34.76, 53.89/40.97). Existing current-work and persistence rows
+  are labelled 2020.
+- Source: means of the six 2018 subjects in `results/tables/per_subject_model.csv` and
+  `per_subject_persistence.csv`. The same files reproduce every existing 2020 value in Table I exactly, and the
+  2018 persistence values (22.52, 36.19) match Sec. II. Nothing was rerun.
+- Footnote: the 2018 exception sentence is replaced by "The Cohort column gives the six-subject OhioT1DM test
+  cohort (official split) on which each result was reported; values are comparable only within a cohort, so
+  the current work and persistence are reported separately for each."
+- On the 2018 cohort the current work beats [34] (18.93 vs 19.33 at 30 min; 29.89 vs 31.72 at 60 min) and is
+  behind [67] (18.93 vs 17.80 at 30 min). For the response letter: [67] fills missing test CGM values by
+  extrapolation, whereas this paper scores only real readings.
+- Still 17 pages, no errors or overfull lines, appendix on page 15.
+
+## Part 7 — 2018-cohort comparators (20 Oct 2026)
+- **Removed [67] Gu et al.** (EMBC 2020): its Table I row, its citation in Sec. III-E (sentence now cites only
+  [34]: "an earlier physiology-based OhioT1DM study that primarily reported forecast accuracy"), and its reference entry.
+- **Added three 2018-cohort journal studies to Table I** (non-physics group, sorted by RMSE@30), values read
+  from each paper:
+  - GluNet: K. Li et al., IEEE J. Biomed. Health Inform. 24(2):414–423, 2020. 6 OhioT1DM subjects, challenge
+    split. RMSE 19.28 ± 2.76 (30 min), 31.83 ± 3.49 (60 min) (their Table IV). No MAE (MARD reported instead).
+  - H. Nemat et al., Sci. Rep. 14:21863, 2024. Ohio_2018, last 10 days as test. Best model (SVR,
+    multivariate) average RMSE/MAE 19.59/13.49 (30 min) and 31.54/22.86 (60 min) (their Tables 4 and 5).
+  - GLYFE: M. De Bois et al., Med. Biol. Eng. Comput. 60(1):1–17, 2022. Subjects 559–591, the "traditional
+    testing set" (last 10 days). Best model (Gaussian process) RMSE 20.01 (30 min), 31.97 (60 min),
+    46.24 (120 min) (their Table II). No MAE.
+- All three fill missing test CGM values by extrapolation (GLYFE, Nemat) or do not say (GluNet).
+- Bib entries inserted after [34], so they are [35]–[37]; every hard-coded citation number re-checked by script.
+- CRPS sentence (Sec. III-G4) shortened to keep the Conclusion on page 14; same formula and values.
+- Still 17 pages, no errors, overfull lines or undefined references; appendix on page 15.
+
+## Part 8 — Table I harmonized with Table XIII (20 Oct 2026)
+Answers Ma'am's comment: "Table I shows only weaker 2020 entries ... Table XIII adds stronger ones ... Harmonize
+them, and add or explain [11], [68]." Table I keeps the same number of rows (17 studies + [34]).
+- **Added to Table I** (values copied from Table XIII, which the paper already had): CNN/LSTM 17.45,
+  N-BEATS + BiLSTM 18.22, LSTM 18.23, NN-EIM 18.63, MS-LSTM 19.05 (all 2020). Table I and Table XIII now
+  show the same 2020 entries.
+- **Gu et al. ([68] in Ma'am's numbering) restored** as a 2018 row (17.80), classed as non-physics because
+  it uses a learned neural encoder, not physiological equations. Reference entry restored with DOI.
+- **Removed from Table I:**
+  - Four 2018 workshop rows that were added to `main.tex` outside these edits and could not be verified:
+    Chen et al. 19.04 (published value 18.9), Xie & Wang 19.53, Martinsson et al. 20.10, Zhu et al. WaveNet 21.73.
+    Their now-uncited reference entries (Chen, Zhu) were removed. Martinsson and Xie & Wang stay in the reference
+    list because they are cited in Sec. II-A as persistence baselines.
+  - Two duplicates of studies already in the table: the single-task ablation of the multitask CRNN, and the
+    second variant of the multi-class LSTM.
+- Rows in the non-physics group are sorted by RMSE@30, so the current work's position is visible.
+- **Footnote:** "Stronger 2020 challenge entries (17.45–19.05) are compared in Table XIII, where the current work
+  is mid-field" → "The current work is competitive with published results on both cohorts; Table XIII also
+  compares the 2020 entries with its LOSO results."
+- 77 references; all hard-coded citation numbers re-checked. Still 17 pages, no errors; appendix on page 15.
+- **Table I footnote rewritten** for reviewers (four sentences): cohort subject IDs (2018: 559–591; 2020:
+  540–596) and comparability only within a cohort; some studies score against interpolated/extrapolated test
+  values while the current work uses only recorded CGM readings; meaning of "not reported"/–; pointer to
+  Tables IV and XIII for all-subject and LOSO results. Ranking is left to the sorted table and Sec. III-J.
+
+## Part 9 — Supplement title (20 Oct 2026)
+- `supplementary.tex` still had the old title ("An Audited Multi-Horizon Evaluation with Validated Patient-Specific
+  Insulin Sensitivity"); now matches `main.tex`.
