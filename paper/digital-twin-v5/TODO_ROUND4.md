@@ -10,67 +10,70 @@ Samyak's items come first, because several of Dhriti's depend on them.
 
 ## Samyak — to be answered
 
-- [ ] **S-1. Training and selection details (Must, M4).**
-  - Load the quantile run's `best_model.pt` and give `config["train"]["early_stopping_patience"]` and
-    `best_epoch` (the saved config there was not overwritten by `report`).
-  - For A0–A4, A7 and the 5-seed runs, give: warmup, ramp end, patience, best epoch, stop epoch. With the
-    default curriculum, A0 and A1–A4 could not stop before epochs 21 and 36, but they stopped at 15–20.
-  - Describe how the validation set is formed in the official protocol (chronological? purge gap?), and how
-    early stopping and selection work inside each LOSO fold.
+Updated 26 Oct 2026 after `SAMYAK_ANSWERS_ROUND4.md`. S-1, S-4, S-9 and S-10 are done and in `main.tex`;
+S-11 needs one rerun; S-15 to S-17 come from a full cross-check of every number against the result files.
 
-- [ ] **S-4. Table VI hypoglycemia values (Must, M5).** None of the six hypo-sensitivity values (0.637,
-  0.502, 0.499, 0.485, 0.517, 0.608) can be reproduced from `results/ablations/per_subject_A*.csv` (about
-  0.015 lower for every arm). Point to the script, or recompute all six plus the hypo bias with one
-  documented method. The Discussion's "1.3 mg/dL" depends on it.
+- [x] **S-1. Training and selection details.** Per-run patience, validation split and LOSO selection are now in Sec. II-I.
+- [x] **S-4. Table VI hypoglycemia values.** Recomputed with `scripts/recompute_table_vi_hypo.py`; Table VI and
+  Sec. III-G2 updated. The "1.3 mg/dL" sentence is unchanged (8.61 − 7.29).
+- [x] **S-9. Physics effect CIs.** In Sec. III-E1. (A3/A4 5-seed replication not done; it was a Should.)
+- [x] **S-10. Low-glucose calibration.** Conformal result and the linear quantile-regression baseline are in Sec. III-G4.
 
-- [ ] **S-9. Physics effect: uncertainty (Must, M2).** Give 95% CIs (subject bootstrap) for the A7 − A0 MAE
-  difference at each horizon from the 5-seed runs. Should: replicate A3 and A4 over the same 5 seeds.
+- [ ] **S-11. Hypoglycemia alarm baseline: rerun with validation-tuned thresholds (Must).**
+  `scripts/run_extra_baselines_round4.py` tunes the persistence and linear-extrapolation thresholds on the
+  **test set** to match 2.21 false alarms/day, while the model's alarm threshold (70 mg/dL) was fixed in
+  advance. That favours the baselines. Rerun with each baseline's threshold chosen on the **validation** split
+  (to give the same false alarms/day there as the model's alarm does on validation), then report test event
+  sensitivity, specificity, false alarms/day and median lead time. The current result (persistence alarm
+  67.9%, 17.5 min) is not in the paper yet, because its framing depends on this rerun.
 
-- [ ] **S-10. Low-glucose calibration (Must, M6).** Below 80 mg/dL, the 80% interval covers 76.4% (30 min)
-  to 53.3% (120 min), and q0.10 is above the truth 22.4% of the time. Try conformal recalibration of the
-  quantiles on the validation set, and report conditional coverage and alarm sensitivity/precision after it.
+- [ ] **S-15. A0 was handicapped in the 5-seed replication (Must, affects the main physics result).**
+  `scripts/run_seeds_a0_a7.py` reuses the ablation run for seed 42 (A0 curriculum: warmup 2, ramp 6, so
+  selection can start at epoch 3), but trains seeds 101–404 from `configs/official-small.yaml` defaults
+  (warmup 10, ramp 25), so A0 cannot select before epoch 11. Your checkpoint table shows A0 seeds 101–404 chose
+  epochs 13, 11, 11, 11, mostly the first epoch allowed, which suggests their best epoch came earlier.
+  A7 could select from epoch 1 in every seed. From the means, A0's four retrained seeds average about 13.97
+  (seed 42: 13.51), while A7's average about 13.40 (seed 42: 13.25), so the handicap may explain part of the
+  0.51 mg/dL gain. A0 has no physics and no per-patient parameters, so its curriculum only delays selection.
+  - Retrain A0 seeds 101–404 with selection allowed from the same epoch as seed 42 (or from epoch 1), about
+    3 min per run, then redo Table VII, the Wilcoxon/Holm tests and the bootstrap CIs (`physics_effect_cis.csv`).
+  - The quantile-head A0 in Table IX has the same issue (warmup 10, ramp 25, best epoch 13): retrain it the
+    same way and redo `hypoglycemia_a0_vs_a7.csv`.
 
-- [ ] **S-11. Missing baselines (Must, M7).** On the same 26,498 test windows:
-  - **Hypoglycemia alarm baseline:** an alarm from persistence or linear extrapolation of the recent glucose
-    trend, tuned to the same false alarms per day (about 2.2). Report event sensitivity and lead time.
-  - **Probabilistic baseline:** linear quantile regression on the 35 features (or the LSTM with a quantile
-    head). Report coverage, interval width and CRPS as in Table X.
-  - Should: one modern point-forecast model (N-BEATS or Temporal Fusion Transformer) on the same windows.
+- [ ] **S-16. Table VIII (PRED-EGA) does not match `pred_ega_summary.csv` (Must).** The means of the overall rows
+  match, but:
+  - Benign SD at 60/90/120 min is 7.0/8.1/8.2 in the paper vs 6.8/7.8/8.1 in the file (the paper's values equal
+    the Accurate SDs).
+  - Erroneous and Clinically Acceptable SD at 60/90/120 min: 0.28/0.39/0.44 in the paper vs 0.34/0.65/0.63.
+  - Hypoglycemia Erroneous at 60/90/120 min: 0.13/0.24/1.59 in the paper vs 0.14/0.14/0.88.
+  - The Hypo/Hyper Accurate SDs are not in the file, so they cannot be checked.
+  Regenerate the whole table from the script and give the file.
+
+- [ ] **S-17. Numbers with no result file (Should).** Point to the output for each, or regenerate:
+  - Sec. III-G3 threshold analysis: T* = 84.0 mg/dL, F2 = 0.771, sensitivity 0.988, specificity 0.868,
+    precision 0.175, 3,397 false positives, and the G < 84 values 0.943/0.908/0.451.
+  - Table IX A0 event-level specificity (99.4%, 95.9%); only A7's is in `event_hypoglycemia_summary.csv`.
+  - Sec. III-H partial correlations for whole-study mean glucose (r = −0.843, p = 0.0011; r = −0.875, p = 0.0004).
+  - IG–permutation agreement: paper and `docs/RESULTS.md` say ρ = 0.731 (p = 6.05e−7), but the current
+    attribution CSVs give ρ = 0.740 (p = 3.8e−7). Which run is right?
 
 ## Dhriti — to be answered
 
-- [ ] **D-3. After Samyak answers (Must).**
-  - Sec. II-I: early-stopping sentence and a new sentence on the validation split and LOSO selection (S-1).
-  - Table VI and the Discussion's "1.3 mg/dL" sentence (S-4).
-  - Add the CIs (S-9), recalibration results (S-10) and new baselines (S-11).
+- [ ] **D-3. After S-11, S-15 and S-16 (Must).** Add the alarm-baseline result to Sec. III-G1, and reframe the hypoglycemia
+  claims to match it: abstract (alarm sentence and conclusion), contribution bullet 4, Discussion ("Second, ...")
+  and Conclusion. If a simple persistence alarm still matches the model's event sensitivity at the same
+  false-alarm rate, say so plainly. After S-15, update every 5-seed number (abstract, Sec. III-E1,
+  Table VII, Discussion, Table II outcome) and Table IX; after S-16, Table VIII and the "0.13% at 60 min" sentence. Already done: S-1, S-4, S-9, S-10 integrated; "calibrated" softened.
 
-- [ ] **D-9. Novelty and framing (Must, M1).**
-  - Add a short paragraph (or a feature table) stating exactly what this work does that [9]–[13] do not.
-  - Cut the digital-twin and RCT material in Sec. I to one or two sentences; the paper is a forecaster.
-
-- [ ] **D-10. Overclaims (Must).**
-  - Abstract: say the 5-seed replication was post hoc and reused the test set.
-  - Abstract conclusion: "small but consistent accuracy gains" → "small accuracy gains in a post hoc replication".
-  - "Calibrated predictive tails": soften unless S-10 fixes low-glucose calibration.
-  - Sec. III-H: "Ambient glucose does not explain" → "Mean glucose does not explain".
-  - Sec. III-I: soften "informative in their own right" (permutation importance is unreliable with correlated features).
-  - Discussion: say what a 0.5 mg/dL gain at 30 min means clinically (M2).
-  - Sec. III-H or V: state plainly that the evidence for S_I is internal only (stability and dose
-    consistency within this cohort, with a weak external reference) and that its usefulness, e.g. for
-    insulin dosing, has not been tested (M3).
-  - Check the Discussion and Conclusion keep every claim to this cohort (M8).
-
-- [ ] **D-11. Reporting (Must).** Add a "Met / Not met" column to Table II (e.g. beats persistence: met, 12/12;
-  field-competitive: met; physics improves accuracy: not met; S_I checks: met under the official protocol).
-
-- [ ] **D-12. Minor text and layout (Should).**
-  - Sec. II-B: one clause on how excluding the 2020 cohort's first test hour affects comparison with the 2018 rows.
-  - Keep q = 0.05 and 0.20 labelled as approximate wherever they appear.
-  - Table IV caption: one line, once the headline number is settled.
-  - Consider dropping Table XIII (move its LOSO row into Table I or the text), and moving Tables III and XIV
-    to the supplement.
-  - Shorten long captions (Tables IV, VI, VII, IX) by moving explanations into the text.
-  - Say once that most OhioT1DM comparators are BGLP workshop papers.
+- [x] **D-9. Novelty and framing.** Done: novelty paragraph at the end of Sec. I-B; digital-twin, RCT and
+  "parallel tracks" material cut to one sentence (all citations kept).
+- [x] **D-10. Overclaims.** Done: abstract (post hoc, same test set; "small accuracy gains in a post hoc
+  replication"), "calibrated" softened, "Mean glucose", attribution softened, clinical meaning of the gain in the
+  Discussion, S_I evidence stated as internal in Limitations, Conclusion limited to this cohort.
+- [x] **D-11. Table II outcomes.** Done: "Outcome" column.
+- [x] **D-12. Minor text and layout.** Done: Sec. II-B clause, Table XIII removed (its LOSO and 2018 points
+  are now in Sec. III-J), captions of Tables IV, VI, VII and IX shortened, workshop-paper note in the Table I
+  footnote. Not done: moving Tables III and XIV to the supplement (not needed for space).
 
 - [ ] **D-13. Ref [11] year (Must).** Completed from the publisher page (sciopen.com): Tsinghua Sci. Technol.,
   vol. 32, no. 1, pp. 549–561, doi 10.26599/TST.2025.9010140. The page's citation says 2027 but its listed

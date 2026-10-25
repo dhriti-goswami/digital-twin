@@ -323,3 +323,76 @@ went into PR #12. All hard-coded numbers are now checked against every reference
 - Still 17 pages, no errors; appendix on page 15.
 
 Open items from here on are in `TODO_ROUND4.md`.
+
+## Part 13 — Samyak's round-4 answers (26 Oct 2026)
+Base: `sammyyakk/digital-twin` main @ `15246ad`.
+- **S-1 (Sec. II-I):** "early stopping after 12 epochs ... The final quantile-head run stopped earlier, after 11
+  epochs, with its best validation MAE at epoch 3" → patience 10 (ablation arms, 5-seed runs), 12 (quantile-head A0),
+  8 (final model, best epoch 3 of 11). Added the validation split (final 15% of each subject's time-ordered training
+  windows, purge gap of one input window plus the longest horizon) and LOSO selection. Source: Samyak's checkpoint table.
+- **S-4 (Table VI, Sec. III-G2):** hypo sensitivity 0.637/0.502/0.499/0.485/0.517/0.608 → 0.621/0.488/0.486/0.471/
+  0.504/0.591 (A0–A4, A7). Bias unchanged (reproduces exactly). Text: "0.608 vs 0.637" → "0.591 vs 0.621";
+  "fell from 0.637" → "fell from 0.621". Source: `results/tables/table_vi_hypo_corrected.csv`.
+- **S-9 (Sec. III-E1):** subject-bootstrap 95% CIs for the A7 − A0 MAE difference, [−0.70, −0.36] at 30 min to
+  [−3.15, −1.69] at 120 min. Source: `results/tables/physics_effect_cis.csv`.
+- **S-10 (Sec. III-G4):** split-conformal recalibration restores marginal coverage (82.3% at 30 min, 79.5% at 120 min)
+  but not coverage below 80 mg/dL (78.1%, 51.9%). Linear quantile-regression baseline: CRPS 8.54–22.75, width
+  43.8–114.0 mg/dL. Sources: `conformal_recalibration.csv`, `conformal_low_glucose_coverage.csv`, `probabilistic_baseline.csv`.
+- **"Calibrated" softened:** abstract conclusion ("lower predictive quantiles ... although coverage below 80 mg/dL
+  remained poor"), Discussion and Conclusion.
+- **Not applied:** the hypoglycemia alarm baseline. Its thresholds were tuned on the test set (S-11 rerun).
+- **Fixed (my error in Part 11):** the Sec. III-J citation range printed "[71-, [75]74]"; now "[71–74], [75]".
+- Still 17 pages, no errors; all hard-coded citation numbers checked.
+
+## Part 14 — Dhriti's items D-9 to D-12 (26 Oct 2026)
+- **D-9 (Sec. I):** removed the "parallel tracks" paragraph and the digital-twin review sentence; the six-sentence
+  digital-twin/RCT paragraph is now one sentence (refs [13]–[18] kept). New paragraph after the three open questions:
+  this work does not propose a new physiological model; its contribution is the combination of (i) real-CGM-only
+  targets at verified horizons with subject-level analysis, (ii) a pre-specified ablation and multi-seed test,
+  (iii) pre-specified checks of S_I, and (iv) quantile forecasts evaluated for hypoglycemia under both protocols.
+  Third open question: "calibrated predictive distribution" → "predictive distribution".
+- **D-10:**
+  - Abstract: "In a post hoc five-seed replication on the same test set, ..."; conclusion "small but consistent
+    accuracy gains" → "small accuracy gains in a post hoc replication".
+  - Sec. III-H: "Ambient glucose" → "Mean glucose". Sec. III-I: "showing that physiology-derived inputs are
+    informative in their own right" → "suggesting that physiology-derived inputs carry information, although
+    attributions among correlated features should be read with caution".
+  - Discussion: the 0.51–2.38 mg/dL gain is about 4% of MAE at 30 min (unlikely to change a clinical decision on its
+    own) and about 7% at 120 min.
+  - Limitations: the evidence for S_I is internal (stable and dose-consistent within this cohort, weak external
+    reference); no clamp; dose relation fails under LOSO; usefulness for insulin dosing untested.
+  - Conclusion: "In this 12-subject cohort, an integrity-checked ... forecaster outperformed ...".
+  - Sec. III-J: "calibrated hypoglycemia detection" → "lower-quantile hypoglycemia detection".
+- **D-11:** Table II has an "Outcome" column: beats persistence, met (12/12); field-competitive, met (13.08 final,
+  13.37 5-seed); physics improves accuracy, not met (Holm p = 0.105; significant only post hoc); S_I CV, met (35.8%);
+  ICC, met (0.890); dose consistency, met official (ρ = −0.839), not met LOSO.
+- **D-12:**
+  - Sec. II-B: "...so results are compared only within a cohort."
+  - Table XIII removed: its entries were all in Table I. Sec. III-J now gives the 2020-cohort LOSO result
+    (20.93/14.98 mg/dL at 30 min) and the 2018 position (RMSE@30 18.93, lower than four of five 2018 entries, above
+    Gu et al. 17.80). Table XIV (parameter vector) is now Table XIII.
+  - Table I footnote: "All-subject results: Table IV. Most comparators are BGLP challenge workshop papers."
+  - Captions shortened: Table IV (one line), Table VI and VII (explanations removed; they are in the text), Table IX
+    (CIs removed from the caption; they are in Sec. III-G2).
+- Still 17 pages, no errors or overfull lines; appendix on page 15; 78 references, all cited, all hard-coded
+  numbers correct.
+
+## Part 15 — Full cross-check against the result files (26 Oct 2026)
+Checked against `sammyyakk/digital-twin` main @ `15246ad` (`results/`, `paper/digital-twin-v5/data/`):
+- **Match:** abstract numbers; Table IV (all values, skill, 12/12 subjects, 12.2–31.6% skill range); Table V (every
+  cell) and the Sec. III-C differences; Table VI MAE and Clarke A; "9 of 12 subjects"; Table VII and Wilcoxon/Holm;
+  Table IX (except A0 event specificity, S-17); Table X and calibration text; window counts (187,780 / 141,100 /
+  36,395 / 10,285 / 26,498); autocorrelation time 53.6; LOSO claims (12/12 by MAE, 10/12 by RMSE, about 12% vs
+  persistence, gap 1.6–4.3 mg/dL) and the 2020 LOSO values; S_I statistics (CV, ICC, ρ, CIs, no-λtc ablation,
+  partial correlations for test-interval glucose, Bergman agreement, ICR, gate values); attribution shares, the
+  3.11 mg/dL top feature and "over seven times"; Clarke A+B and Parkes A+B; Fig. 6 values (CV ratio, LBGI, TIR,
+  TBR); Table I current-work and persistence rows.
+- **Fixed:** Fig. 5 caption said Clarke zones D and E "remain negligible"; zone D reaches about 5% at 120 min.
+  Now: "zone D rises from about 1% to about 5%, and zone E stays below 0.05%".
+- **Flagged for Samyak:** S-15 (A0 handicap in the 5-seed replication), S-16 (Table VIII mismatches),
+  S-17 (numbers with no result file).
+
+Open items from here on are in `TODO_ROUND5.md`.
+
+## Part 16 — Ref [11] year (26 Oct 2026)
+- Ref [11]: "2027 (published online 2026)" → "2027", as confirmed by Dhriti (D-13 done).
