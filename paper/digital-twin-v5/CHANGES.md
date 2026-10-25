@@ -271,3 +271,55 @@ them, and add or explain [11], [68]." Table I keeps the same number of rows (17 
 ## Part 9 — Supplement title (20 Oct 2026)
 - `supplementary.tex` still had the old title ("An Audited Multi-Horizon Evaluation with Validated Patient-Specific
   Insulin Sensitivity"); now matches `main.tex`.
+
+## Part 10 — Samyak's round-3 answers (25 Oct 2026)
+Base: `sammyyakk/digital-twin` main @ `6251c44`.
+- **S-7 (Sec. II-I):** added the selected configuration: "validation selected 2 layers, d_model = 64, 4 heads,
+  d_ff = 128, dropout 0.2, attention pooling, and Kendall weighting." Source: `configs/official-small.yaml`,
+  confirmed by Samyak.
+- **S-6 (Sec. III-H, Table XII):** after the ρ = 0.790 sentence: "This reference is weak (30-min MAE 25.5 mg/dL
+  even on training data), so agreement indicates only loose convergent validity." Table XII interpretation
+  "Agreement" → "Weak reference" for the two Bergman rows. Source: `results/tables/bergman_insample_fit_quality.csv`.
+- **Sec. III-J (D-5, partly):** "differ slightly from the 2020-cohort figures in Tables I and XIII; both are
+  correct, answer different comparability questions, and should not be averaged together" → "differ from the
+  per-cohort figures in Tables I and XIII because they answer a different comparability question" (Table I
+  now has 2018 rows).
+- **Not changed:** Sec. II-I early-stopping sentence (S-1 follow-up open) and Table VI (S-4 still open).
+- Still 17 pages, no errors; appendix on page 15.
+
+## Part 11 — Dhriti's items D-4, D-5, D-6, D-8 (25 Oct 2026)
+- **D-4 Title** (main and supplement): "...with Stable, Dose-Consistent Patient-Specific Insulin Sensitivity" →
+  "...with a Stable Patient-Specific Insulin-Sensitivity Estimate".
+- **D-5 Comparison:**
+  - Zhu et al. GAN [2020 cohort, subjects 540–596] added to Table I and Table XIII: RMSE/MAE 18.34/13.37 (30 min),
+    32.21/24.20 (60 min), from Table 1 of their paper. Table I keeps its length: Seq2Seq BiLSTM (21.80, weakest
+    row, cited nowhere else) removed with its reference entry.
+  - Sec. III-J: "Further 2020 entries report RMSE@30 of 18.34 and 19.60" → "A further 2020 entry reports RMSE@30
+    of 19.60 mg/dL [Joedicke]" (Zhu GAN is now in the tables and added to the mid-field citation list).
+  - Sec. III-J: "MAE (22.55) is lower than every entry except one whose MAE-to-RMSE ratio is far outside the range
+    of the other entries [Pavan]" → "MAE (22.55) is the second lowest".
+  - Table XIII kept: it is the only place with the LOSO row for the 2020 cohort.
+- **D-6 Wording:**
+  - Fig. 4 caption: now says the 5-seed replication (13.37 vs 13.88 mg/dL) found A7 significantly better.
+  - Abstract conclusion: "In this cohort, calibrated predictive tails, not error-grid scores, determined
+    hypoglycemia detection."
+  - Sec. III-G1: "At about two false alarms per day, alarm fatigue is a concern [Shivers et al., J. Diabetes Sci.
+    Technol. 7(3):789–794, 2013], so the operating point would need to be set with patients." New reference.
+- **D-8 Fig. 7:** feature names now readable (e.g. "Rate of change (5 min)", "Time since bolus"); caption says
+  "the 5-min glucose rate of change" instead of the code name.
+- **Space:** to stay at 17 pages, three figure captions were shortened, each dropping a sentence that repeats the
+  text: Fig. 2 ("...gap between them widens"), Fig. 3 (last clause), Fig. 5 (last sentence) and Fig. 7 (last sentence).
+
+### Correction to Part 5 (citation numbers)
+Part 5 said 17 hard-coded citation numbers had been wrong since v4. That was a mistake in my checking script:
+it ignored the reference with a non-numeric key (`refBH`), so it miscounted. The v4 numbers were correct, and the
+"fix" made them one too low for 17 citations (e.g. the meal-model range and the 2020-challenge range). That version
+went into PR #12. All hard-coded numbers are now checked against every reference entry and are correct.
+
+## Part 12 — Author name and ref [11] (25 Oct 2026)
+- Author line: "Yugananda Malhotra" → "Yugnanda Malhotra" (matches her email).
+- Ref [11] (Wang et al., Tsinghua Sci. Technol.) completed from the publisher page: "vol. 32, no. 1, pp. 549–561,
+  2027 (published online 2026), doi: 10.26599/TST.2025.9010140" (was "2026" only). Year to confirm (D-13).
+- Still 17 pages, no errors; appendix on page 15.
+
+Open items from here on are in `TODO_ROUND4.md`.

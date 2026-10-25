@@ -26,10 +26,10 @@
 \setlength{\emergencystretch}{1.5em}
 \hbadness=10000
 
-\title{Physics-Guided Probabilistic Glucose Forecasting in Type 1 Diabetes: An Integrity-Checked Multi-Horizon Evaluation with Stable, Dose-Consistent Patient-Specific Insulin Sensitivity}
+\title{Physics-Guided Probabilistic Glucose Forecasting in Type 1 Diabetes: An Integrity-Checked Multi-Horizon Evaluation with a Stable Patient-Specific Insulin-Sensitivity Estimate}
 
 \author{
-\IEEEauthorblockN{Samyak Jain, Dhriti Goswami, Yugananda Malhotra}\\
+\IEEEauthorblockN{Samyak Jain, Dhriti Goswami, Yugnanda Malhotra}\\
 \IEEEauthorblockA{
 Bharati Vidyapeeth's College of Engineering New Delhi, 110063, India\\
 sammyyakk@gmail.com; goswami.dhritid@gmail.com; yugnanda\_malhotra@yahoo.com
@@ -46,7 +46,7 @@ sammyyakk@gmail.com; goswami.dhritid@gmail.com; yugnanda\_malhotra@yahoo.com
 
 \textbf{Results:} Personalized RMSE was 18.84, 30.52, 38.60, and 44.46~mg/dL at 30, 60, 90, and 120~min (19.4--21.2\% skill over persistence); at 30~min all 12 subjects improved, and under LOSO all 12 still beat persistence at 30~min by MAE (10 of 12 by RMSE). In a post hoc five-seed replication, physics reduced MAE at every horizon (30-min MAE $13.37 \pm 0.11$ vs.\ $13.88 \pm 0.25$~mg/dL across seeds; 2.38~mg/dL lower at 120~min; Holm $p=0.002$), although the pre-specified single-seed test was not significant (13.25 vs.\ 13.51~mg/dL; Holm $p=0.105$). It also yielded an insulin-sensitivity estimate ($S_I$) that varied between subjects (CV 35.8\%), was stable within them (ICC 0.89), and fell with total daily insulin ($\rho=-0.84$), though not under LOSO\@. The 5-min glucose rate of change was the top predictor under both attribution methods. At 30~min, the median forecast detected 55.1\% of hypoglycemic readings; a 10th-percentile alarm raised this to 91.8\% at a precision of 0.347.
 
-\textbf{Conclusion:} Physiological structure yielded a stable insulin-sensitivity estimate, consistent with insulin dose under personalized evaluation, and small but consistent accuracy gains. Calibrated predictive tails, not error-grid scores, determine hypoglycemia detection.
+\textbf{Conclusion:} Physiological structure yielded a stable insulin-sensitivity estimate, consistent with insulin dose under personalized evaluation, and small but consistent accuracy gains. In this cohort, calibrated predictive tails, not error-grid scores, determined hypoglycemia detection.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -96,6 +96,7 @@ Reference & Methodology & Cohort & RMSE@30 & MAE@30 & RMSE@60 & MAE@60 & RMSE@90
 \cite{ref59} & Neural physiological encoder + LSTM & 2018 & 17.80 & -- & -- & -- & \multicolumn{2}{c}{not reported$^{\dagger}$} & \multicolumn{2}{c}{not reported$^{\dagger}$} \\
 \cite{ref62} & N-BEATS + BiLSTM & 2020 & 18.22 & 12.83 & 31.66 & 23.60 & \multicolumn{2}{c}{not reported$^{\dagger}$} & \multicolumn{2}{c}{not reported$^{\dagger}$} \\
 \cite{ref61} & LSTM & 2020 & 18.23 & 14.37 & 31.10 & 25.75 & \multicolumn{2}{c}{not reported$^{\dagger}$} & \multicolumn{2}{c}{not reported$^{\dagger}$} \\
+\cite{ref65} & GAN & 2020 & 18.34 & 13.37 & 32.21 & 24.20 & \multicolumn{2}{c}{not reported$^{\dagger}$} & \multicolumn{2}{c}{not reported$^{\dagger}$} \\
 \cite{ref60} & NN-EIM & 2020 & 18.63 & 10.08 & 32.27 & 17.69 & \multicolumn{2}{c}{not reported$^{\dagger}$} & \multicolumn{2}{c}{not reported$^{\dagger}$} \\
 \cite{ref66} & Stacked regression + activity & 2020 & 18.99 & 13.73 & 33.39 & 25.04 & \multicolumn{2}{c}{not reported$^{\dagger}$} & \multicolumn{2}{c}{not reported$^{\dagger}$} \\
 \cite{ref64} & MS-LSTM & 2020 & 19.05 & 13.50 & 32.03 & 23.83 & \multicolumn{2}{c}{not reported$^{\dagger}$} & \multicolumn{2}{c}{not reported$^{\dagger}$} \\
@@ -108,7 +109,6 @@ Reference & Methodology & Cohort & RMSE@30 & MAE@30 & RMSE@60 & MAE@60 & RMSE@90
 \cite{ref83} & Gaussian process & 2018 & 20.01 & -- & 31.97 & -- & \multicolumn{2}{c}{not reported$^{\dagger}$} & 46.24 & -- \\
 \cite{ref72} & Online ARMA + residual net & 2020 & 20.03 & 14.52 & 34.89 & 24.61 & \multicolumn{2}{c}{not reported$^{\dagger}$} & \multicolumn{2}{c}{not reported$^{\dagger}$} \\
 \cite{ref73} & Personalised interpretable LSTM & 2020 & 20.20 & 14.74 & 34.19 & 25.98 & \multicolumn{2}{c}{not reported$^{\dagger}$} & \multicolumn{2}{c}{not reported$^{\dagger}$} \\
-\cite{ref74} & Seq2Seq BiLSTM & 2020 & 21.80 & 15.00 & 35.00 & 25.00 & \multicolumn{2}{c}{not reported$^{\dagger}$} & \multicolumn{2}{c}{not reported$^{\dagger}$} \\
 \midrule
 \multicolumn{11}{l}{\textit{Physics-informed + other-architecture hybrid (6 subjects, official split)$^{\dagger}$}} \\
 \cite{ref58} & Physiological model + ANN & 2018 & 19.33 & -- & 31.72 & -- & \multicolumn{2}{c}{not reported$^{\dagger}$} & \multicolumn{2}{c}{not reported$^{\dagger}$} \\
@@ -145,13 +145,13 @@ The paper is structured as follows. Section~I introduces the background, related
 
 \subsection{Integrity Requirements}
 
-Glucose-forecasting pipelines on OhioT1DM are exposed to several integrity pitfalls that can inflate or invalidate reported accuracy: windows that span recording gaps, so that the nominal horizon differs from the true one; forward-filled or interpolated CGM values used as prediction targets; random splits of strongly overlapping windows, which place near-duplicate samples in both training and test sets; overlapping windows, rather than subjects, used as the unit of statistical analysis; and no persistence baseline, without which absolute error values cannot be interpreted. Published no-change baselines for OhioT1DM~[\hyperref[ref56label]{39}-\hyperref[ref57label]{40}] make the last pitfall straightforward to check.
+Glucose-forecasting pipelines on OhioT1DM are exposed to several integrity pitfalls that can inflate or invalidate reported accuracy: windows that span recording gaps, so that the nominal horizon differs from the true one; forward-filled or interpolated CGM values used as prediction targets; random splits of strongly overlapping windows, which place near-duplicate samples in both training and test sets; overlapping windows, rather than subjects, used as the unit of statistical analysis; and no persistence baseline, without which absolute error values cannot be interpreted. Published no-change baselines for OhioT1DM~[\hyperref[ref56label]{38}-\hyperref[ref57label]{39}] make the last pitfall straightforward to check.
 
 The pipeline used here was built to exclude each pitfall by design: each became a design constraint or one of 234 automated tests. Evaluation begins with persistence, subjects rather than windows are the unit of analysis, and every table is regenerated from stored predictions.
 
 \subsection{Dataset and Temporal Integrity}
 
-OhioT1DM contains 12 subjects in the 2018 and 2020 cohorts and 166,443 CGM observations sampled nominally every five minutes, together with basal and bolus insulin, carbohydrate, activity, sleep, and wearable channels~[\hyperref[ref30label]{41}-\hyperref[ref31label]{42}]. The official split follows the same subjects forward in time and therefore measures personalized forecasting, not cross-subject generalization. The 2020 cohort's first test hour is excluded according to its challenge protocol; the 2018 cohort is not modified in this way.
+OhioT1DM contains 12 subjects in the 2018 and 2020 cohorts and 166,443 CGM observations sampled nominally every five minutes, together with basal and bolus insulin, carbohydrate, activity, sleep, and wearable channels~[\hyperref[ref30label]{40}-\hyperref[ref31label]{41}]. The official split follows the same subjects forward in time and therefore measures personalized forecasting, not cross-subject generalization. The 2020 cohort's first test hour is excluded according to its challenge protocol; the 2018 cohort is not modified in this way.
 
 All streams are aligned to an exact five-minute grid without dropping rows. Missing CGM runs of at most ten minutes may be interpolated for input construction, but interpolated values are never accepted as targets. A sequence is emitted only if its 24-step (two-hour) input satisfies the coverage rule and every target is a real observation exactly $h \in \{30, 60, 90, 120\}$ minutes after the anchor. The scaler is fit only on training-fold slots, with each physical slot counted once rather than once per overlapping window.
 
@@ -470,7 +470,7 @@ No asymmetric hypoglycemia/hyperglycemia point-loss term is permitted, because s
 
 \subsection{Reproducibility, Hardware, and Latency}
 
-Models were implemented in PyTorch 2.10 (CUDA 12.8) and trained with AdamW (learning rate $5 \times 10^{-4}$, weight decay 0.03, batch size 256, gradient clipping at $L_2$ norm 1.0) for at most 70 epochs, with early stopping after 12 epochs without improvement in 30-min validation MAE. The final quantile-head run stopped earlier, after 11 epochs, with its best validation MAE at epoch 3. The hyperparameter search covered encoder depth $\in \{2, 4\}$, $d_{\text{model}} \in \{64, 128\}$, attention heads $\in \{4, 8\}$, $d_{\text{ff}} \in \{128, 512\}$, dropout $\in \{0.1, 0.2\}$, pooling (attention, mean, or last), and physics-loss weighting (fixed $\lambda_{\text{phys}} \in [0.01, 1.0]$ vs.\ Kendall homoscedastic uncertainty weighting).
+Models were implemented in PyTorch 2.10 (CUDA 12.8) and trained with AdamW (learning rate $5 \times 10^{-4}$, weight decay 0.03, batch size 256, gradient clipping at $L_2$ norm 1.0) for at most 70 epochs, with early stopping after 12 epochs without improvement in 30-min validation MAE. The final quantile-head run stopped earlier, after 11 epochs, with its best validation MAE at epoch 3. The hyperparameter search covered encoder depth $\in \{2, 4\}$, $d_{\text{model}} \in \{64, 128\}$, attention heads $\in \{4, 8\}$, $d_{\text{ff}} \in \{128, 512\}$, dropout $\in \{0.1, 0.2\}$, pooling (attention, mean, or last), and physics-loss weighting (fixed $\lambda_{\text{phys}} \in [0.01, 1.0]$ vs.\ Kendall homoscedastic uncertainty weighting); validation selected 2 layers, $d_{\text{model}} = 64$, 4 heads, $d_{\text{ff}} = 128$, dropout 0.2, attention pooling, and Kendall weighting.
 
 Experiments ran on a single Linux machine with an NVIDIA GeForce RTX 2050 Laptop GPU (4~GB) and an Intel Core CPU. Across the seven training runs reported here (ablation arms A0--A4 and A7, and the final quantile-head model), training stopped after 11--20 epochs (mean 16.3), at 10.7--23.8~s per epoch, or 2.7--6.4~min per run. Inference latency for one window (batch size 1, 100 forward passes) was $15.25 \pm 4.07$~ms on GPU (median 13.21~ms, 95th percentile 25.07~ms) and $6.33 \pm 0.18$~ms on CPU (median 6.31~ms), well within the 5-minute CGM sampling interval. Code, data-processing pipelines, and configurations are available at \url{https://github.com/sammyyakk/digital-twin}.
 
@@ -493,7 +493,7 @@ Because IG shows an unresolved completeness violation, every interpretation is c
 \toprule
 Claim & Criterion fixed before test evaluation & Interpretation & Ref. \\
 \midrule
-Beats persistence & 30-minute MAE below persistence in at least 10 of 12 subjects & Requires broadly distributed improvement, not a pooled gain driven by a few subjects. & [\hyperref[ref30label]{41}-\hyperref[ref31label]{42}],~\cite{ref57} \\
+Beats persistence & 30-minute MAE below persistence in at least 10 of 12 subjects & Requires broadly distributed improvement, not a pooled gain driven by a few subjects. & [\hyperref[ref30label]{40}-\hyperref[ref31label]{41}],~\cite{ref57} \\
 Field-competitive point accuracy & 30-minute MAE $\leq$ 13.5 mg/dL & A field-relative target, explicitly not a clinical acceptability threshold. &~\cite{ref31},~[\hyperref[ref43label]{54}-\hyperref[ref44label]{55}],~\cite{ref64} \\
 Physics improves accuracy & Physics arm beats A0 at 30 minutes and survives paired Wilcoxon testing with Holm correction & If unmet, physics is not credited with point-accuracy improvement. & [\hyperref[ref48label]{60}-\hyperref[ref49label]{61}] \\
 $S_I$ is subject-specific & Between-subject CV $>$ 10\% & Rejects a parameter head collapsed to one population value. &~\cite{ref1,ref32} \\
@@ -509,7 +509,7 @@ $S_I$ is dose-consistent & Spearman $\rho < 0$ versus total daily dose, with a s
 
 \subsection{Baseline Validation and Data Accounting}
 
-Persistence RMSE on the 2018 cohort is $22.52 \pm 2.56$~mg/dL at 30 minutes and $36.19 \pm 3.26$~mg/dL at 60 minutes, within $0.02$~mg/dL of both independently published no-change baselines at 30 minutes and within $0.41$~mg/dL of the published 60-minute value[\hyperref[ref56label]{39}-\hyperref[ref57label]{40}]. This close agreement validates the complete evaluation pipeline, including data parsing, five-minute grid alignment, horizon construction, persistence-target generation, RMSE computation, and subject-level aggregation (Table~\ref{tab:windows}). The retained-window accounting further confirms that the reported metrics are computed on the intended 26,498 common test windows. 
+Persistence RMSE on the 2018 cohort is $22.52 \pm 2.56$~mg/dL at 30 minutes and $36.19 \pm 3.26$~mg/dL at 60 minutes, within $0.02$~mg/dL of both independently published no-change baselines at 30 minutes and within $0.41$~mg/dL of the published 60-minute value[\hyperref[ref56label]{38}-\hyperref[ref57label]{39}]. This close agreement validates the complete evaluation pipeline, including data parsing, five-minute grid alignment, horizon construction, persistence-target generation, RMSE computation, and subject-level aggregation (Table~\ref{tab:windows}). The retained-window accounting further confirms that the reported metrics are computed on the intended 26,498 common test windows. 
 
 \begin{table}[t]
 \centering
@@ -660,7 +660,7 @@ Table~\ref{tab:official} and Fig.~\ref{fig:summary} show that the model improves
 \end{groupplot}
 \end{tikzpicture}
 
-\caption{\small\textit{Official-protocol accuracy summary at 30/60/90/120 minutes. (a) and (b): MAE and RMSE for persistence versus the hybrid model both rise with horizon, but the gap between the two curves widens rather than closes, showing the model's advantage over naive persistence is not a short-horizon artifact. (c): the resulting RMSE skill stays essentially flat at 19--21\% across all four horizons.}}
+\caption{\small\textit{Official-protocol accuracy summary at 30/60/90/120 minutes. (a) and (b): MAE and RMSE for persistence versus the hybrid model both rise with horizon, and the gap between them widens. (c): the resulting RMSE skill stays essentially flat at 19--21\% across all four horizons.}}
 \label{fig:summary}
 \end{figure*}
 
@@ -794,7 +794,7 @@ At 30 minutes, LOSO remains better than persistence in all 12 subjects by MAE (1
 \end{axis}
 \end{tikzpicture}
 
-\caption{\small\textit{Matched-protocol comparison across 30, 60, 90, and 120-minute horizons. Persistence, personalized, and LOSO models are evaluated on identical windows. LOSO keeps a roughly constant MAE advantage of about 12\% over persistence at every horizon, while its gap to the personalized model widens from 1.6 to 4.3~mg/dL, indicating a greater benefit from within-subject history for extended forecasting.}}
+\caption{\small\textit{Matched-protocol comparison across 30, 60, 90, and 120-minute horizons. Persistence, personalized, and LOSO models are evaluated on identical windows. LOSO keeps a roughly constant MAE advantage of about 12\% over persistence at every horizon, while its gap to the personalized model widens from 1.6 to 4.3~mg/dL.}}
 \label{fig:matched_protocol_comparison}
 \end{figure}
 
@@ -875,7 +875,7 @@ A7 & Hybrid, full physics from epoch 1 & \textbf{13.25} & \textbf{22.29} & \text
 \end{axis}
 
 \end{tikzpicture}
-\caption{\small\textit{Point-accuracy ablation at 30 minutes comparing six physics configurations (A0-A4,A7), from no physics (A0) to full physics from epoch 1 (A7). A7 has the lowest MAE (13.25 mg/dL) versus 13.51 mg/dL for A0 in the primary run (seed 42). Multi-seed replication across 5 random seeds confirms this advantage is statistically significant across all horizons under paired Wilcoxon testing (Table~\ref{tab:multiseed}).}}
+\caption{\small\textit{Point-accuracy ablation at 30 minutes comparing six physics configurations (A0-A4,A7), from no physics (A0) to full physics from epoch 1 (A7). A7 has the lowest MAE (13.25 mg/dL) versus 13.51 mg/dL for A0 in the primary run (seed 42). A post hoc 5-seed replication (30-min MAE 13.37 vs.\ 13.88~mg/dL) found A7 significantly better at all horizons under paired Wilcoxon testing (Table~\ref{tab:multiseed}).}}
 \label{fig:ablationfig}
 \end{figure}
 
@@ -993,7 +993,7 @@ However, as observed with Clarke zone A, standard point-forecast metrics reward 
 \legend{A,B,C,D,E}
 \end{axis}
 \end{tikzpicture}
-\caption{\small\textit{Clarke error-grid composition across 30/60/90/120-minute horizons. Zone A decreases from $\sim$90\% to $\sim$58\%, with the difference shifting mainly to zone B, while dangerous zones D and E remain negligible. Despite this favorable composition, the median forecast still misses many hypoglycemic events, so low D/E rates should not be interpreted as high hypoglycemia sensitivity.}}
+\caption{\small\textit{Clarke error-grid composition across 30/60/90/120-minute horizons. Zone A decreases from $\sim$90\% to $\sim$58\%, with the difference shifting mainly to zone B, while dangerous zones D and E remain negligible.}}
 \label{fig:clarke}
 \end{figure}
 
@@ -1003,7 +1003,7 @@ However, as observed with Clarke zone A, standard point-forecast metrics reward 
 Point forecasts trained with squared or Huber losses regress toward the mean and underestimate hypoglycemic excursions. We therefore evaluated hypoglycemia detection in four ways: consensus event-level detection, a head-to-head comparison of A0 and A7 with quantile heads, validation-based threshold selection, and multi-horizon calibration.
 
 \subsubsection{Consensus Event-Based Hypoglycemia Evaluation}
-Following international consensus~\cite{ref52}, a hypoglycemic episode was defined as at least 15 continuous minutes (three consecutive 5-minute readings) below 70~mg/dL; the test set contains 56 such episodes over 92.0 patient-days (Table~\ref{tab:hypo_event}). With 56 events and about 552 effectively independent test windows (494 using the autocorrelation time), these estimates carry substantial uncertainty. The median forecast detected 11 of 56 events (sensitivity 19.6\%, specificity 99.4\%, 0.62 false alarms/day, median lead time 15~min). An alarm on the lower quantile ($\hat{G}_{0.10} < 70$~mg/dL) detected 38 of 56 before onset (67.9\%; specificity 95.4\%, 2.21 false alarms/day, median lead time 15~min). Monitoring $\min(\hat{G}_{0.10}(30), \hat{G}_{0.10}(60)) < 70$~mg/dL detected 46 of 56 (82.1\%; specificity 92.1\%, 3.46 false alarms/day) and extended the median lead time to 25.0~min.
+Following international consensus~\cite{ref52}, a hypoglycemic episode was defined as at least 15 continuous minutes (three consecutive 5-minute readings) below 70~mg/dL; the test set contains 56 such episodes over 92.0 patient-days (Table~\ref{tab:hypo_event}). With 56 events and about 552 effectively independent test windows (494 using the autocorrelation time), these estimates carry substantial uncertainty. The median forecast detected 11 of 56 events (sensitivity 19.6\%, specificity 99.4\%, 0.62 false alarms/day, median lead time 15~min). An alarm on the lower quantile ($\hat{G}_{0.10} < 70$~mg/dL) detected 38 of 56 before onset (67.9\%; specificity 95.4\%, 2.21 false alarms/day, median lead time 15~min). Monitoring $\min(\hat{G}_{0.10}(30), \hat{G}_{0.10}(60)) < 70$~mg/dL detected 46 of 56 (82.1\%; specificity 92.1\%, 3.46 false alarms/day) and extended the median lead time to 25.0~min. At about two false alarms per day, alarm fatigue is a concern~\cite{refShivers}, so the operating point would need to be set with patients.
 
 \subsubsection{Quantile Alarm for Baseline A0 vs.\ Physics A7}
 \label{sec:quantile_a0_a7}
@@ -1178,7 +1178,7 @@ We tested whether the stability and dose correlation of $S_I$ could be artifacts
 \begin{enumerate}
     \item \textbf{No temporal-consistency loss ($\lambda_{tc} = 0$):} Retrained without the penalty (\texttt{abl-A7-notc}), $S_I$ still passed all checks: ICC(1) = 0.645, CV = 22.2\%, all estimates within the Ward IDDM bounds, and $\rho = -0.804$ with total daily dose ($p = 0.0016$, 95\% CI [$-0.955, -0.451$]). Stability is therefore partly, but not solely, attributable to the penalty: removing it lowered ICC(1) from 0.890 to 0.645 and CV from 35.8\% to 22.2\%.
     \item \textbf{Partial correlation controlling for mean glucose:} Controlling for test-interval mean glucose, the $S_I$--TDD partial correlation was $r = -0.838$ (rank, $p = 0.0013$) and $r = -0.886$ (Pearson, $p = 0.0003$); controlling for whole-study mean glucose gave $r = -0.843$ ($p = 0.0011$) and $r = -0.875$ ($p = 0.0004$). Ambient glucose does not explain the relationship.
-    \item \textbf{Independent minimal-model fit:} $S_I$ from the parameter head agreed with per-subject Bergman estimates obtained by nonlinear least squares/MAP (Spearman $\rho = 0.790$, $p = 0.0022$; Pearson $r = 0.831$, $p = 0.0008$), without iterative fitting at inference.
+    \item \textbf{Independent minimal-model fit:} $S_I$ from the parameter head agreed with per-subject Bergman estimates obtained by nonlinear least squares/MAP (Spearman $\rho = 0.790$, $p = 0.0022$; Pearson $r = 0.831$, $p = 0.0008$), without iterative fitting at inference. This reference is weak (30-min MAE 25.5~mg/dL even on training data), so agreement indicates only loose convergent validity.
     \item \textbf{Insulin-to-carbohydrate ratio:} For the six 2018 subjects with clinical ICR (grams of carbohydrate per unit of insulin, so a positive correlation is expected), the correlation with $S_I$ was Spearman $\rho = +0.371$ ($p = 0.469$) and Pearson $r = +0.079$ ($p = 0.881$); with $n = 6$, this check is underpowered.
     \item \textbf{Learned trust gate $g$:} The gate on the Bergman prior, initialized at $g_0 \approx 0.10$, converged to 0.152 in the point forecaster (A7) and 0.128 in the quantile forecaster.
 \end{enumerate}
@@ -1205,8 +1205,8 @@ Partial Pearson $r(S_I, \text{TDD} \mid \bar{G}_{\text{test}})$ & $-0.886$ & Aft
 Partial rank $r(S_I, \text{TDD} \mid \bar{G}_{\text{all}})$ & $-0.843$ & After adjustment ($p = 0.0011$) \\
 \midrule
 \multicolumn{3}{l}{\textit{Agreement with Classic Minimal Model:}} \\
-Agreement with NLS/MAP Bergman (Spearman $\rho$) & $+0.790$ & Agreement ($p = 0.0022$) \\
-Agreement with NLS/MAP Bergman (Pearson $r$) & $+0.831$ & Agreement ($p = 0.0008$) \\
+Agreement with NLS/MAP Bergman (Spearman $\rho$) & $+0.790$ & Weak reference ($p = 0.0022$) \\
+Agreement with NLS/MAP Bergman (Pearson $r$) & $+0.831$ & Weak reference ($p = 0.0008$) \\
 Agreement with clinical ICR ($n=6$, exploratory) & $+0.371$ & Underpowered ($p = 0.469$) \\
 \midrule
 \multicolumn{3}{l}{\textit{Mechanistic Prior Trust Gate:}} \\
@@ -1283,7 +1283,7 @@ Attribution concentrates in the most recent input positions, supporting attentio
 \begin{axis}[f8, width=0.62\linewidth,
   xbar, bar width=6.5pt, xmajorgrids,
   ytick={0,1,2,3,4,5,6,7,8},
-  yticklabels={hour\_sin,roc\_15min,glucose\_std\_1h,glucose\_mean\_2h,glucose\_mean\_1h,is\_night,minutes\_since\_bolus,roc\_30min,roc\_5min},
+  yticklabels={Hour of day (sine),Rate of change (15 min),Glucose SD (1 h),Glucose mean (2 h),Glucose mean (1 h),Night indicator,Time since bolus,Rate of change (30 min),Rate of change (5 min)},
   y tick label style={font=\scriptsize\ttfamily},
   ymin=-0.6, ymax=8.6,
   xmin=0, xmax=3.4, xtick={0,0.5,...,3},
@@ -1295,14 +1295,14 @@ Attribution concentrates in the most recent input positions, supporting attentio
 \end{tikzpicture}\\[2pt]
 {\normalsize\bfseries (b)}
 \end{minipage}
-\caption{\small\textit{Feature attribution at 30 min using integrated gradients (a) and permutation importance (b). Glucose-derived features dominate IG attribution (42.7\%), while \textnormal{\texttt{roc\_5}} is the strongest permuted feature ($\sim$3.1~mg/dL MAE increase). Both methods identify glucose dynamics as the leading predictors.}}
+\caption{\small\textit{Feature attribution at 30 min using integrated gradients (a) and permutation importance (b). Glucose-derived features dominate IG attribution (42.7\%), while the 5-min glucose rate of change is the strongest permuted feature ($\sim$3.1~mg/dL MAE increase).}}
 \label{fig:attribution}
 \end{figure*}
 
 
 \subsection{Comparison With Published Work}
 
-At 30 minutes, the current work is mid-field relative to the 2020 challenge literature~\cite{ref64}, [\hyperref[ref60label]{71}-\hyperref[ref63label]{74}] (Table~\ref{tab:published}): on the matched 2020 cohort (subjects 540/544/552/567/584/596, the six subjects on which the challenge entries were scored), RMSE is 18.74 and MAE is 13.24~mg/dL. Further 2020 entries report RMSE@30 of 18.34 and 19.60~mg/dL~[\hyperref[ref65label]{75}-\hyperref[ref70label]{76}]. At 60 minutes, RMSE (31.16) is essentially tied with the best entry (31.10), and MAE (22.55) is lower than every entry except one whose MAE-to-RMSE ratio is far outside the range of the other entries~\cite{ref60}; differences in window eligibility, missing-data handling, external pretraining, and best-configuration reporting prevent a state-of-the-art claim. Across all 12 subjects, the only published comparison is GARNN~\cite{ref75} (18.97/13.34~mg/dL at 30 minutes), against which the all-subject result (18.84/13.08) should be read as a tie. The defensible advances are calibrated hypoglycemia detection, explicit personalized-versus-LOSO decomposition, pre-specified checks of a physiological parameter, and a quantified account of the benefits and costs of Bergman constraints. The all-12-subject official figures reported throughout the Results section (e.g., 18.84/13.08 at 30 minutes) differ slightly from the 2020-cohort figures in Tables~\ref{tab:landscape} and~\ref{tab:published}; both are correct, answer different comparability questions, and should not be averaged together.
+At 30 minutes, the current work is mid-field relative to the 2020 challenge literature~\cite{ref64}, [\hyperref[ref60label]{71}-\hyperref[ref63label],~\cite{ref65}{74}] (Table~\ref{tab:published}): on the matched 2020 cohort (subjects 540/544/552/567/584/596, the six subjects on which the challenge entries were scored), RMSE is 18.74 and MAE is 13.24~mg/dL. A further 2020 entry reports RMSE@30 of 19.60~mg/dL~\cite{ref70}. At 60 minutes, RMSE (31.16) is essentially tied with the best entry (31.10), and MAE (22.55) is the second lowest; differences in window eligibility, missing-data handling, external pretraining, and best-configuration reporting prevent a state-of-the-art claim. Across all 12 subjects, the only published comparison is GARNN~\cite{ref75} (18.97/13.34~mg/dL at 30 minutes), against which the all-subject result (18.84/13.08) should be read as a tie. The defensible advances are calibrated hypoglycemia detection, explicit personalized-versus-LOSO decomposition, pre-specified checks of a physiological parameter, and a quantified account of the benefits and costs of Bergman constraints. The all-12-subject figures in the Results (e.g., 18.84/13.08 at 30 minutes) differ from the per-cohort figures in Tables~\ref{tab:landscape} and~\ref{tab:published} because they answer a different comparability question.
 
 \begin{table*}[t]
 \centering
@@ -1316,6 +1316,7 @@ Method & R30 & A30 & R60 & A60 & R90 & A90 & R120 & A120 \\
 Freiburghaus CNN/LSTM~\cite{ref63} & 17.45 & 11.22 & 33.67 & 23.25 & -- & -- & -- & -- \\
 Rubin-Falcone N-BEATS+BiLSTM~\cite{ref62} & 18.22 & 12.83 & 31.66 & 23.60 & -- & -- & -- & -- \\
 Bevan--Coenen LSTM~\cite{ref61} & 18.23 & 14.37 & 31.10 & 25.75 & -- & -- & -- & -- \\
+Zhu GAN~\cite{ref65} & 18.34 & 13.37 & 32.21 & 24.20 & -- & -- & -- & -- \\
 Pavan NN-EIM~\cite{ref60} & 18.63 & 10.08 & 32.27 & 17.69 & -- & -- & -- & -- \\
 Yang MS-LSTM~\cite{ref64} & 19.05 & 13.50 & 32.03 & 23.83 & -- & -- & -- & -- \\
 \textbf{Current Work, official} & \textbf{18.74} & \textbf{13.24} & \textbf{31.16} & \textbf{22.55} & \textbf{39.52} & \textbf{29.14} & \textbf{45.39} & \textbf{34.03} \\
@@ -1460,7 +1461,7 @@ Table~\ref{tab:params} lists the estimated patient-parameter vector. Notation ta
 
 \bibitem{ref9}\label{ref9label} R. Pei and W. Wang, ``PINN based short-term glucose prediction for type 1 diabetes,'' in \emph{2025 4th Asia Conf. Algorithms, Computing and Machine Learning (CACML)}, Guangzhou, China, 2025, pp. 1--6.
 
-\bibitem{ref11}\label{ref11label} W. Wang, R. Pei, D. Li, S. Liu, Y. Geng, and S. Wang, ``A physics-informed glucose-insulin neural network model for glucose prediction,'' \emph{Tsinghua Sci. Technol.}, 2026.
+\bibitem{ref11}\label{ref11label} W. Wang, R. Pei, D. Li, S. Liu, Y. Geng, and S. Wang, ``A physics-informed glucose-insulin neural network model for glucose prediction,'' \emph{Tsinghua Sci. Technol.}, vol.~32, no.~1, pp.~549--561, 2027 (published online 2026), doi: 10.26599/TST.2025.9010140.
 
 \bibitem{ref12}\label{ref12label} P.~A. Mongini, M. Drecogna, and C. Toffanin, ``New physics-LSTM hybrid models for control-oriented glucose prediction in Type 1 Diabetes,'' in \emph{2025 American Control Conf. (ACC)}, Denver, CO, USA, 2025, pp. 662--667.
 
@@ -1503,8 +1504,6 @@ Table~\ref{tab:params} lists the estimated patient-parameter vector. Notation ta
 \bibitem{ref72}\label{ref72label} N. Ma, Y. Zhao, S. Wen, T. Yang, R. Wu, R. Tao, X. Yu, and H. Li, ``Online blood glucose prediction using autoregressive moving average model with residual compensation network,'' in \emph{Proc. 5th Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2675, pp. 151--155, 2020.
 
 \bibitem{ref73}\label{ref73label} G. Cappon, L. Meneghetti, F. Prendin, J. Pavan, G. Sparacino, S. Del Favero, and A. Facchinetti, ``A personalized and interpretable deep learning based approach to predict blood glucose concentration in type 1 diabetes,'' in \emph{Proc. 5th Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2675, pp. 75--79, 2020.
-
-\bibitem{ref74}\label{ref74label} A.~R. Bhimireddy, P. Sinha, B. Oluwalade, J.~W. Gichoya, and S. Purkayastha, ``Blood glucose level prediction as time-series modeling using sequence-to-sequence neural networks,'' in \emph{Proc. 5th Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2675, pp. 125--130, 2020.
 
 \bibitem{ref58}\label{ref58label} A. Bertachi, L. Biagi, I. Contreras, N. Luo, and J. Veh\'{\i}, ``Prediction of blood glucose levels and nocturnal hypoglycemia using physiological models and artificial neural networks,'' in \emph{Proc. 3rd Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2148, pp. 85--90, 2018.
 
@@ -1595,6 +1594,8 @@ Table~\ref{tab:params} lists the estimated patient-parameter vector. Notation ta
 \bibitem{ref70}\label{ref70label} D. Joedicke, G. Kronberger, J.~M. Colmenar, S. Winkler, J.~M. Velasco, S. Contador, and J.~I. Hidalgo, ``Analysis of the performance of genetic programming on the Blood Glucose Level Prediction Challenge 2020,'' in \emph{Proc. 5th Int. Workshop Knowledge Discovery in Healthcare Data}, CEUR-WS, vol. 2675, pp. 141--145, 2020.
 
 \bibitem{ref75}\label{ref75label} C. Piao, T. Zhu, S.~E. Baldeweg, P. Taylor, P. Georgiou, J. Sun, J. Wang, and K. Li, ``GARNN: An interpretable graph attentive recurrent neural network for predicting blood glucose levels via multivariate time series,'' \emph{Neural Netw.}, vol. 185, Art. no. 107229, 2025, doi: 10.1016/j.neunet.2025.107229.
+
+\bibitem{refShivers}\label{refShiverslabel} J.~P. Shivers, L. Mackowiak, H. Anhalt, and H. Zisser, ```Turn it off!': Diabetes device alarm fatigue considerations for the present and the future,'' \emph{J. Diabetes Sci. Technol.}, vol.~7, no.~3, pp.~789--794, 2013.
 
 \end{thebibliography}
 
