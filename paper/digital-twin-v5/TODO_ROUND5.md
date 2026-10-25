@@ -44,7 +44,8 @@ D-3 depends on them. Do S-15 first.
 ## Dhriti — to be answered
 
 - [ ] **D-3. Update the paper after Samyak's answers (Must).**
-  - S-15: every 5-seed number (abstract, Sec. III-E1, Table VII, CIs, Discussion, Table II outcome) and Table IX.
+  - S-15: every 5-seed number: abstract, Sec. III-E (ablation paragraph) and III-E1, Table VII, the bootstrap CIs,
+    Fig. 4 caption, Discussion (0.51–2.38 mg/dL and the 4%/7% sentence), Table II outcome; and Table IX.
   - S-11: add the alarm-baseline result to Sec. III-G1, and reword the hypoglycemia claims to match it (abstract
     alarm sentence and conclusion, contribution bullet 4, Discussion "Second, ...", Conclusion). If a simple
     alarm still matches the model at the same false-alarm rate, say so plainly.
