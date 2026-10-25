@@ -34,6 +34,12 @@ def get_model_config(arm: str, seed: int) -> Config:
         config.physics.enabled = False
         config.model.hybrid_residual = False
         config.model.per_patient_params = False
+        # Match seed 42's actual curriculum (reused from artifacts/official/abl-A0),
+        # so model selection can start at the same epoch (3) for every seed instead
+        # of being handicapped by the official-small.yaml default (warmup=10 -> epoch 11).
+        config.physics.param_warmup_epochs = 2
+        config.physics.ramp_start_epoch = 2
+        config.physics.ramp_end_epoch = 6
         config.run.name = f"abl-A0-s{seed}"
     elif arm == "A7":
         config.physics.enabled = True

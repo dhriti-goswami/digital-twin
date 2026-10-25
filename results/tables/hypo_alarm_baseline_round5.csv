@@ -1,0 +1,3 @@
+baseline,decision_threshold_mgdl,target_fa_per_day_val,achieved_fa_per_day_val,test_total_episodes,test_detected_episodes,test_event_sensitivity,test_specificity,test_fa_per_day,test_median_lead_time_min,test_mean_lead_time_min,test_monitored_patient_days
+Persistence alarm,90.5,2.2290502793296088,2.2458100558659218,56,38,0.6785714285714286,0.9200565415423276,2.2063551966186123,17.5,16.18421052631579,92.00694444444446
+Linear-extrapolation alarm,63.0,2.2290502793296088,2.2290502793296088,56,25,0.44642857142857145,0.9742814512329198,1.9563740659672426,15.0,14.0,92.00694444444446
