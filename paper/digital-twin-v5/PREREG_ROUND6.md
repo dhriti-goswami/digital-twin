@@ -28,6 +28,16 @@ P8. Cross-cohort transfer (added 2026-10-26 before running; no external real dat
     120 min, paired Wilcoxon + subject bootstrap CI (n=6 per direction, low power stated).
     Labelled cross-cohort transfer, not external validation. Holm-corrected separately from P1-P7.
 
+P9. Hypoglycemia alarm, multi-seed (added after audit, see note): q10<70 alarm at 30 min,
+    event sensitivity / specificity / FA per day / median lead time for A0 and A7 over all 5
+    seeds with matched configs (seed 42 retrained with the seeds 101-404 quantile config for
+    BOTH arms). Report mean +/- SD across seeds and a two-level bootstrap (resample subjects,
+    then seeds). Compare against the validation-tuned persistence alarm (S-11).
+    Note: the audit already computed seeds 101-404 (A0 0.648, A7 0.750 mean sensitivity) before
+    this entry was written; those runs are included unchanged. Seed-42 retrains are not yet run.
+    The single-seed round-5 result (A0 0.786 vs A7 0.679, unequal patience 12 vs 8) is
+    superseded by P9, whichever direction P9 goes.
+
 ## Deviations
 
 (none yet)
