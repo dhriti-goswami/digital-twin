@@ -22,6 +22,12 @@ P6. Low-data regime: retrain A0 and A7 on 25% and 50% of training subjects (seed
     evaluate on the same test set. Report gap per fraction.
 P7. Seed variance: compare across-seed SD of A0 vs A7 (stability claim).
 
+P8. Cross-cohort transfer (added 2026-10-26 before running; no external real dataset in repo):
+    train A0 and A7 (fair curricula, seeds 42/101/202/303/404) on OhioT1DM 2018 subjects only,
+    test on 2020 test files; then the reverse. Per-subject seed-averaged MAE/RMSE at 30/60/90/
+    120 min, paired Wilcoxon + subject bootstrap CI (n=6 per direction, low power stated).
+    Labelled cross-cohort transfer, not external validation. Holm-corrected separately from P1-P7.
+
 ## Deviations
 
 (none yet)
