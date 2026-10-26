@@ -1,0 +1,3 @@
+analysis,stratum,horizon_min,n_subjects,a0_mean,a7_mean,gap,ci_lo,ci_hi,p_raw,in_holm,n_windows,rel_gap_pct,sd_ratio_a7_over_a0,p_holm,verdict
+P5,frac trajectories with |dG/dt|>4 mg/dL/min,-1,12,0.3683966619157521,1.4887598630340926e-05,0.36838177431712177,0.34529079340419194,0.3901551187467978,0.00048828125,True,26498.0,,,0.02685546875,helps
+P5,frac trajectories <40 or >400 mg/dL,-1,12,0.0003170549271150947,7.702695189973142e-05,0.00024002797521536332,-6.671343610988826e-05,0.000739178715066386,0.625,True,26498.0,,,1.0,no difference detected
